@@ -480,6 +480,16 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     }),
   );
 
+  it.effect("exposes wall ls and say without T3 Connect configuration", () =>
+    Effect.gen(function* () {
+      const { output } = yield* captureStdout(runCli(["wall", "--help"], noConnectCli));
+
+      assert.include(output, "live Zellij panes");
+      assert.include(output, "ls");
+      assert.include(output, "say");
+    }),
+  );
+
   it.effect("reports fresh headless connect state without requiring local configuration", () =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(

@@ -1,0 +1,118 @@
+/**
+ * `t3 wall` - list and type into live Zellij panes from outside a session.
+ *
+ * Slice 1 is CLI only. `ls` is inventory; `say` pastes into a pane. Neither
+ * starts a provider process. Killing this CLI does not kill the Zellij session.
+ */
+import * as Console from "effect/Console";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import { Argument, Command, Flag } from "effect/unstable/cli";
+
+import * as ProcessRunner from "../processRunner.ts";
+import { inject, listInventory } from "../wall/ZellijCtl.ts";
+
+const WallRuntimeLayer = ProcessRunner.layer;
+
+const jsonFlag = Flag.boolean("json").pipe(
+  Flag.withDescription("Print JSON."),
+  Flag.withDefault(false),
+);
+
+const sessionFlag = Flag.string("session").pipe(
+  Flag.withDescription("Limit inventory to one named Zellij session."),
+  Flag.optional,
+);
+
+const toShellFlag = Flag.boolean("to-shell").pipe(
+  Flag.withDescription("Allow typing into a pane that does not look like an agent."),
+  Flag.withDefault(false),
+);
+
+const noSubmitFlag = Flag.boolean("no-submit").pipe(
+  Flag.withDescription("Paste without sending Enter."),
+  Flag.withDefault(false),
+);
+
+function formatInventoryText(inventory: {
+  readonly sessions: ReadonlyArray<{
+    readonly name: string;
+    readonly exited: boolean;
+    readonly panes: ReadonlyArray<{
+      readonly id: string;
+      readonly title: string;
+      readonly cmdHint: string;
+      readonly accountHint?: string;
+    }>;
+  }>;
+}): string {
+  if (inventory.sessions.length === 0) {
+    return "No Zellij sessions.";
+  }
+  const lines: Array<string> = [];
+  for (const session of inventory.sessions) {
+    lines.push(`${session.name}${session.exited ? " (exited)" : ""}`);
+    if (session.exited) continue;
+    if (session.panes.length === 0) {
+      lines.push("  (no terminal panes)");
+      continue;
+    }
+    for (const pane of session.panes) {
+      const account = pane.accountHint === undefined ? "" : ` ${pane.accountHint}`;
+      lines.push(`  ${pane.id}\t${pane.cmdHint}\t${pane.title}${account}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function formatInventoryJson(inventory: { readonly sessions: ReadonlyArray<unknown> }): string {
+  return JSON.stringify(inventory, null, 2);
+}
+
+const wallLsCommand = Command.make("ls", {
+  json: jsonFlag,
+  session: sessionFlag,
+}).pipe(
+  Command.withDescription("List named Zellij sessions and their terminal panes."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const inventory = yield* listInventory(
+        Option.isSome(flags.session) ? { session: flags.session.value } : undefined,
+      );
+      yield* Console.log(
+        flags.json ? formatInventoryJson(inventory) : formatInventoryText(inventory),
+      );
+    }).pipe(Effect.provide(WallRuntimeLayer)),
+  ),
+);
+
+const wallSayCommand = Command.make("say", {
+  session: Argument.string("session").pipe(Argument.withDescription("Zellij session name.")),
+  paneId: Argument.string("pane").pipe(Argument.withDescription("Pane id, e.g. terminal_1.")),
+  text: Argument.string("text").pipe(
+    Argument.withDescription("Text to paste into the pane."),
+    Argument.variadic,
+  ),
+  toShell: toShellFlag,
+  noSubmit: noSubmitFlag,
+}).pipe(
+  Command.withDescription("Paste text into a live Zellij pane, then Enter unless --no-submit."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const text = flags.text.join(" ");
+      yield* inject({
+        session: flags.session,
+        paneId: flags.paneId,
+        text,
+        submit: !flags.noSubmit,
+        confirmShell: flags.toShell,
+      });
+      yield* Console.log(`Injected into ${flags.session} ${flags.paneId}.`);
+    }).pipe(Effect.provide(WallRuntimeLayer)),
+  ),
+);
+
+export const wallCommand = Command.make("wall").pipe(
+  Command.withDescription("Attach to live Zellij panes without spawning a T3 provider process."),
+  Command.withSubcommands([wallLsCommand, wallSayCommand]),
+);
