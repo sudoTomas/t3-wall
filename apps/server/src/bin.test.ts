@@ -8,6 +8,7 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
+  AuthAdministrativeScopes,
   CommandId,
   EnvironmentOrchestrationHttpApi,
   ProviderInstanceId,
@@ -480,6 +481,16 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     }),
   );
 
+  it.effect("exposes wall ls and say without T3 Connect configuration", () =>
+    Effect.gen(function* () {
+      const { output } = yield* captureStdout(runCli(["wall", "--help"], noConnectCli));
+
+      assert.include(output, "live Zellij panes");
+      assert.include(output, "ls");
+      assert.include(output, "say");
+    }),
+  );
+
   it.effect("reports fresh headless connect state without requiring local configuration", () =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(
@@ -650,28 +661,10 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
 
       assert.equal(typeof issued.sessionId, "string");
       assert.equal(typeof issued.token, "string");
-      assert.deepEqual(issued.scopes, [
-        "orchestration:read",
-        "orchestration:operate",
-        "terminal:operate",
-        "review:write",
-        "relay:read",
-        "access:read",
-        "access:write",
-        "relay:write",
-      ]);
+      assert.deepEqual(issued.scopes, [...AuthAdministrativeScopes]);
       assert.equal(listed.length, 1);
       assert.equal(listed[0]?.sessionId, issued.sessionId);
-      assert.deepEqual(listed[0]?.scopes, [
-        "orchestration:read",
-        "orchestration:operate",
-        "terminal:operate",
-        "review:write",
-        "relay:read",
-        "access:read",
-        "access:write",
-        "relay:write",
-      ]);
+      assert.deepEqual(listed[0]?.scopes, [...AuthAdministrativeScopes]);
       assert.equal("token" in (listed[0] ?? {}), false);
     }).pipe(Effect.provide(DisconnectedLauncherChildLayer)),
   );
