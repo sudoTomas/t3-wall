@@ -1,4 +1,11 @@
-import { Outlet, createFileRoute, redirect, useParams } from "@tanstack/react-router";
+import {
+  Outlet,
+  createFileRoute,
+  redirect,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useMemo } from "react";
 
@@ -29,6 +36,8 @@ function ChatRouteGlobalShortcuts() {
   const selectedThreadKeysSize = useThreadSelectionStore((state) => state.selectedThreadKeys.size);
   const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread, routeThreadRef } =
     useHandleNewThread();
+  const navigate = useNavigate();
+  const pathname = useLocation({ select: (location) => location.pathname });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const legacySidebarEnabled = useLegacySidebarEnabled();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
@@ -110,6 +119,22 @@ function ChatRouteGlobalShortcuts() {
         return;
       }
 
+      if (command === "wall.toggle") {
+        event.preventDefault();
+        event.stopPropagation();
+        const environmentId = routeThreadRef?.environmentId ?? primaryEnvironmentId;
+        if (!environmentId) return;
+        if (/\/[^/]+\/wall\/?$/.test(pathname)) {
+          void navigate({ to: "/" });
+          return;
+        }
+        void navigate({
+          to: "/$environmentId/wall",
+          params: { environmentId },
+        });
+        return;
+      }
+
       if (command === "preview.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -171,6 +196,9 @@ function ChatRouteGlobalShortcuts() {
     selectedThreadKeysSize,
     legacySidebarEnabled,
     terminalOpen,
+    navigate,
+    pathname,
+    primaryEnvironmentId,
   ]);
 
   return null;
