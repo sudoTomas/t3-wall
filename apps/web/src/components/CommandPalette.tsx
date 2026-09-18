@@ -43,6 +43,7 @@ import * as Option from "effect/Option";
 import {
   ArrowLeftIcon,
   ChartNoAxesColumnIcon,
+  Columns2Icon,
   CornerLeftUpIcon,
   FileSearchIcon,
   FolderIcon,
@@ -2014,6 +2015,29 @@ function OpenCommandPaletteDialog(props: {
       icon: <PullRequestGlyph.pullRequest className={ITEM_ICON_CLASS} />,
       run: async () => {
         await navigate({ to: "/pull-requests", search: readPullRequestListPreferences() });
+      },
+    });
+  }
+
+  const wallEnvironmentId = activeThread?.environmentId ?? primaryEnvironmentId;
+  if (wallEnvironmentId) {
+    const wallOpen = /\/[^/]+\/wall\/?$/.test(pathname);
+    actionItems.push({
+      kind: "action",
+      value: "action:wall",
+      searchTerms: ["wall", "columns", "grid", "split", "side by side", "multi thread"],
+      title: wallOpen ? "Close wall" : "Open wall",
+      icon: <Columns2Icon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "wall.toggle",
+      run: async () => {
+        if (wallOpen) {
+          await navigate({ to: "/" });
+          return;
+        }
+        await navigate({
+          to: "/$environmentId/wall",
+          params: { environmentId: wallEnvironmentId },
+        });
       },
     });
   }

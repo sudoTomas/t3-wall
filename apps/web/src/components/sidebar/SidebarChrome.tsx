@@ -1,11 +1,11 @@
-import { ArrowLeftIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
+import { ArrowLeftIcon, ChartNoAxesColumnIcon, Columns2Icon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useCallback } from "react";
 import { Link, useCanGoBack, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
-import { useEnvironments } from "../../state/environments";
+import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
 import { T3Wordmark } from "../T3Wordmark";
 import {
   resolveEnvironmentIdentificationPillLabel,
@@ -145,6 +145,10 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
               : null,
   });
   const { environments } = useEnvironments();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const wallOpen = /\/[^/]+\/wall\/?$/.test(
+    useLocation({ select: (location) => location.pathname }),
+  );
   // The page reads every connected server, so one of them offering pull requests is enough for
   // the link to lead somewhere.
   const pullRequestsSupported = environments.some(
@@ -166,6 +170,20 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     closeMobileSidebar();
     void navigate({ to: "/settings" });
   }, [closeMobileSidebar, navigate]);
+
+  const handleWallClick = useCallback(() => {
+    if (isMobile) return;
+    closeMobileSidebar();
+    if (wallOpen) {
+      void navigate({ to: "/" });
+      return;
+    }
+    if (!primaryEnvironmentId) return;
+    void navigate({
+      to: "/$environmentId/wall",
+      params: { environmentId: primaryEnvironmentId },
+    });
+  }, [closeMobileSidebar, isMobile, navigate, primaryEnvironmentId, wallOpen]);
 
   const handleUsageClick = useCallback(() => {
     if (isMobile) {
@@ -205,6 +223,9 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
               label="Pull Requests"
               onClick={handlePullRequestsClick}
             />
+          ) : null}
+          {!isMobile && primaryEnvironmentId ? (
+            <SidebarUtilityItem icon={<Columns2Icon />} label="Wall" onClick={handleWallClick} />
           ) : null}
           <SidebarUtilityItem
             icon={<ChartNoAxesColumnIcon />}
