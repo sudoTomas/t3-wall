@@ -5,36 +5,33 @@
  * unset. Success of inject means Zellij accepted the action, not that an
  * agent finished a turn.
  */
+import {
+  MuxCommandFailedError,
+  MuxInjectRefusedError,
+  MuxNotFoundError,
+  MuxPaneNotFoundError,
+  MuxSessionNotFoundError,
+  type MuxCmdHint,
+  type MuxInventory,
+  type MuxPane,
+  type MuxSession,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import * as ProcessRunner from "../processRunner.ts";
 
-const MIN_ZELLIJ_VERSION = "0.44.0";
+export {
+  MuxCommandFailedError,
+  MuxInjectRefusedError,
+  MuxNotFoundError,
+  MuxPaneNotFoundError,
+  MuxSessionNotFoundError,
+};
+
 const AGENT_CMD_HINTS = ["claude", "grok", "codex", "cursor", "opencode", "antigravity"] as const;
 
-export type MuxCmdHint = (typeof AGENT_CMD_HINTS)[number] | "zsh" | "unknown";
-
-export interface MuxPane {
-  readonly id: string;
-  readonly title: string;
-  readonly cmdHint: MuxCmdHint;
-  readonly accountHint?: string;
-  readonly cwd?: string;
-  readonly exited: boolean;
-  readonly tabName?: string;
-}
-
-export interface MuxSession {
-  readonly name: string;
-  readonly createdAt?: string;
-  readonly exited: boolean;
-  readonly panes: ReadonlyArray<MuxPane>;
-}
-
-export interface MuxInventory {
-  readonly sessions: ReadonlyArray<MuxSession>;
-}
+export type { MuxCmdHint, MuxInventory, MuxPane, MuxSession };
 
 export interface MuxInjectInput {
   readonly session: string;
@@ -46,52 +43,6 @@ export interface MuxInjectInput {
 
 export interface MuxInjectResult {
   readonly accepted: true;
-}
-
-export class MuxNotFoundError extends Schema.TaggedError<MuxNotFoundError>()("MuxNotFoundError", {
-  detail: Schema.optional(Schema.String),
-}) {
-  override get message(): string {
-    return `zellij was not found on PATH. Install Zellij ${MIN_ZELLIJ_VERSION} or newer and put it on the environment server's non-interactive PATH.`;
-  }
-}
-
-export class MuxSessionNotFoundError extends Schema.TaggedError<MuxSessionNotFoundError>()(
-  "MuxSessionNotFoundError",
-  { session: Schema.String },
-) {
-  override get message(): string {
-    return `Zellij session '${this.session}' is not active.`;
-  }
-}
-
-export class MuxPaneNotFoundError extends Schema.TaggedError<MuxPaneNotFoundError>()(
-  "MuxPaneNotFoundError",
-  { session: Schema.String, paneId: Schema.String },
-) {
-  override get message(): string {
-    return `Pane '${this.paneId}' was not found in Zellij session '${this.session}'.`;
-  }
-}
-
-export class MuxInjectRefusedError extends Schema.TaggedError<MuxInjectRefusedError>()(
-  "MuxInjectRefusedError",
-  { session: Schema.String, paneId: Schema.String, cmdHint: Schema.String },
-) {
-  override get message(): string {
-    return `Refusing to type into pane '${this.paneId}' (cmd '${this.cmdHint}'). Pass --to-shell to send to a non-agent pane.`;
-  }
-}
-
-export class MuxCommandFailedError extends Schema.TaggedError<MuxCommandFailedError>()(
-  "MuxCommandFailedError",
-  { operation: Schema.String, detail: Schema.optional(Schema.String) },
-) {
-  override get message(): string {
-    return this.detail === undefined
-      ? `Zellij ${this.operation} failed.`
-      : `Zellij ${this.operation} failed: ${this.detail}`;
-  }
 }
 
 const ZellijPaneJson = Schema.Struct({

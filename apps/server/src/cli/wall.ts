@@ -14,22 +14,22 @@ import { inject, listInventory } from "../wall/ZellijCtl.ts";
 
 const WallRuntimeLayer = ProcessRunner.layer;
 
-const jsonFlag = Flag.boolean("json").pipe(
+const jsonFlag = Flag.Boolean("json").pipe(
   Flag.withDescription("Print JSON."),
   Flag.withDefault(false),
 );
 
-const sessionFlag = Flag.string("session").pipe(
+const sessionFlag = Flag.String("session").pipe(
   Flag.withDescription("Limit inventory to one named Zellij session."),
   Flag.optional,
 );
 
-const toShellFlag = Flag.boolean("to-shell").pipe(
+const toShellFlag = Flag.Boolean("to-shell").pipe(
   Flag.withDescription("Allow typing into a pane that does not look like an agent."),
   Flag.withDefault(false),
 );
 
-const noSubmitFlag = Flag.boolean("no-submit").pipe(
+const noSubmitFlag = Flag.Boolean("no-submit").pipe(
   Flag.withDescription("Paste without sending Enter."),
   Flag.withDefault(false),
 );
@@ -87,9 +87,9 @@ const wallLsCommand = Command.make("ls", {
 );
 
 const wallSayCommand = Command.make("say", {
-  session: Argument.string("session").pipe(Argument.withDescription("Zellij session name.")),
-  paneId: Argument.string("pane").pipe(Argument.withDescription("Pane id, e.g. terminal_1.")),
-  text: Argument.string("text").pipe(
+  session: Argument.String("session").pipe(Argument.withDescription("Zellij session name.")),
+  paneId: Argument.String("pane").pipe(Argument.withDescription("Pane id, e.g. terminal_1.")),
+  text: Argument.String("text").pipe(
     Argument.withDescription("Text to paste into the pane."),
     Argument.variadic,
   ),

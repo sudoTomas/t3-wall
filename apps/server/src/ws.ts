@@ -119,6 +119,7 @@ import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 import * as ServerSettings from "./serverSettings.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
+import * as WallService from "./wall/WallService.ts";
 import { withTerminalOutputWindow } from "./terminal/OutputProtocol.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as DeviceService from "./device/DeviceService.ts";
@@ -554,6 +555,7 @@ const makeWsRpcLayer = (
       const vcsProvisioning = yield* VcsProvisioningService.VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
       const terminalManager = yield* TerminalManager.TerminalManager;
+      const wallService = yield* WallService.WallService;
       const previewManager = yield* PreviewManager.PreviewManager;
       const deviceService = yield* DeviceService.DeviceService;
       const deviceHostContext =
@@ -3364,6 +3366,26 @@ const makeWsRpcLayer = (
         [WS_METHODS.terminalClose]: (input) =>
           observeRpcEffect(WS_METHODS.terminalClose, terminalManager.close(input), {
             "rpc.aggregate": "terminal",
+          }),
+        [WS_METHODS.wallInventory]: (input) =>
+          observeRpcEffect(WS_METHODS.wallInventory, wallService.inventory(input), {
+            "rpc.aggregate": "wall",
+          }),
+        [WS_METHODS.wallInject]: (input) =>
+          observeRpcEffect(WS_METHODS.wallInject, wallService.inject(input), {
+            "rpc.aggregate": "wall",
+          }),
+        [WS_METHODS.wallGrant]: (input) =>
+          observeRpcEffect(WS_METHODS.wallGrant, wallService.grant(input.session), {
+            "rpc.aggregate": "wall",
+          }),
+        [WS_METHODS.wallRevoke]: (input) =>
+          observeRpcEffect(WS_METHODS.wallRevoke, wallService.revoke(input.session), {
+            "rpc.aggregate": "wall",
+          }),
+        [WS_METHODS.wallListGrants]: (_input) =>
+          observeRpcEffect(WS_METHODS.wallListGrants, wallService.listGrants(), {
+            "rpc.aggregate": "wall",
           }),
         [WS_METHODS.subscribeTerminalEvents]: (_input) =>
           observeRpcStream(

@@ -14,6 +14,15 @@ import {
 
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
+  MuxInventory,
+  WallError,
+  WallGrantInput,
+  WallGrantList,
+  WallInjectInput,
+  WallInjectResult,
+  WallInventoryInput,
+} from "./wall.ts";
+import {
   AuthAccessStreamError,
   AuthAccessStreamEvent,
   EnvironmentAuthorizationError,
@@ -333,6 +342,13 @@ export const WS_METHODS = {
   terminalClear: "terminal.clear",
   terminalRestart: "terminal.restart",
   terminalClose: "terminal.close",
+
+  // Live-pane wall (Zellij). Not T3-owned terminals.
+  wallInventory: "wall.inventory",
+  wallInject: "wall.inject",
+  wallGrant: "wall.grant",
+  wallRevoke: "wall.revoke",
+  wallListGrants: "wall.listGrants",
 
   // Preview methods
   previewOpen: "preview.open",
@@ -1129,6 +1145,36 @@ const WsTerminalCloseRpc = Rpc.make(WS_METHODS.terminalClose, {
   error: Schema.Union([TerminalError, EnvironmentAuthorizationError]),
 });
 
+const WsWallInventoryRpc = Rpc.make(WS_METHODS.wallInventory, {
+  payload: WallInventoryInput,
+  success: MuxInventory,
+  error: Schema.Union([WallError, EnvironmentAuthorizationError]),
+});
+
+const WsWallInjectRpc = Rpc.make(WS_METHODS.wallInject, {
+  payload: WallInjectInput,
+  success: WallInjectResult,
+  error: Schema.Union([WallError, EnvironmentAuthorizationError]),
+});
+
+const WsWallGrantRpc = Rpc.make(WS_METHODS.wallGrant, {
+  payload: WallGrantInput,
+  success: WallGrantList,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsWallRevokeRpc = Rpc.make(WS_METHODS.wallRevoke, {
+  payload: WallGrantInput,
+  success: WallGrantList,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsWallListGrantsRpc = Rpc.make(WS_METHODS.wallListGrants, {
+  payload: Schema.Struct({}),
+  success: WallGrantList,
+  error: EnvironmentAuthorizationError,
+});
+
 const WsPreviewOpenRpc = Rpc.make(WS_METHODS.previewOpen, {
   payload: PreviewOpenInput,
   success: PreviewSessionSnapshot,
@@ -1480,6 +1526,11 @@ export const WsRpcGroup = RpcGroup.make(
   WsTerminalClearRpc,
   WsTerminalRestartRpc,
   WsTerminalCloseRpc,
+  WsWallInventoryRpc,
+  WsWallInjectRpc,
+  WsWallGrantRpc,
+  WsWallRevokeRpc,
+  WsWallListGrantsRpc,
   WsSubscribeTerminalEventsRpc,
   WsSubscribeTerminalMetadataRpc,
   WsPreviewOpenRpc,
