@@ -15,9 +15,14 @@ import {
   type MuxInventory,
   type MuxPane,
   type MuxSession,
+  type WallWatchEvent,
 } from "@t3tools/contracts";
+import * as Cause from "effect/Cause";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 
 import * as ProcessRunner from "../processRunner.ts";
 
@@ -249,3 +254,154 @@ export const inject = Effect.fn("wall.inject")(function* (input: MuxInjectInput)
   }
   return { accepted: true } as const;
 });
+
+const MAX_VIEWPORT_LINES = 200;
+const MIN_FRAME_INTERVAL = Duration.millis(80);
+const DUMP_SCREEN_POLL = Duration.millis(200);
+
+const SubscribeLine = Schema.Struct({
+  event: Schema.optional(Schema.String),
+  pane_id: Schema.optional(Schema.String),
+  viewport: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+  is_initial: Schema.optional(Schema.Boolean),
+});
+const decodeSubscribeLine = Schema.decodeUnknownOption(SubscribeLine);
+
+function clipViewport(lines: ReadonlyArray<string>): ReadonlyArray<string> {
+  return lines.slice(0, MAX_VIEWPORT_LINES);
+}
+
+export function parseSubscribeLine(session: string, line: string): WallWatchEvent | null {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return null;
+  let json: unknown;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  const decoded = decodeSubscribeLine(json);
+  if (decoded._tag === "None") return null;
+  const payload = decoded.value;
+  const paneId = payload.pane_id;
+  if (paneId === undefined) return null;
+  if (payload.event === "pane_closed") {
+    return { type: "closed", session, paneId };
+  }
+  if (payload.event !== "pane_update") return null;
+  return {
+    type: "frame",
+    session,
+    paneId,
+    viewport: clipViewport(payload.viewport ?? []),
+    initial: payload.is_initial === true,
+  };
+}
+
+export function dumpScreenToFrame(
+  session: string,
+  paneId: string,
+  stdout: string,
+  initial: boolean,
+): WallWatchEvent {
+  return {
+    type: "frame",
+    session,
+    paneId,
+    viewport: clipViewport(stdout.split("\n")),
+    initial,
+  };
+}
+
+export function shouldEmitWatchEvent(
+  previous: WallWatchEvent | null,
+  next: WallWatchEvent,
+  elapsedSinceEmit: Duration.Duration,
+): boolean {
+  if (next.type === "closed") return true;
+  if (next.type === "frame" && next.initial) return true;
+  if (previous?.type === "frame" && next.type === "frame") {
+    if (previous.viewport.join("\n") === next.viewport.join("\n")) return false;
+  }
+  return Duration.toMillis(elapsedSinceEmit) >= Duration.toMillis(MIN_FRAME_INTERVAL);
+}
+
+const coalesceWatchEvents = (events: Stream.Stream<WallWatchEvent, WallError, never>) => {
+  let previous: WallWatchEvent | null = null;
+  let lastEmitMs = 0;
+  return events.pipe(
+    Stream.filter((event) => {
+      const now = Date.now();
+      const elapsed = Duration.millis(Math.max(0, now - lastEmitMs));
+      if (!shouldEmitWatchEvent(previous, event, elapsed)) return false;
+      previous = event;
+      lastEmitMs = now;
+      return true;
+    }),
+  );
+};
+
+const mapStreamProcessError = <A>(
+  stream: Stream.Stream<A, ProcessRunner.ProcessSpawnError | ProcessRunner.ProcessReadError>,
+) =>
+  stream.pipe(
+    Stream.mapError((error) =>
+      error._tag === "ProcessSpawnError"
+        ? new MuxNotFoundError({ detail: error.message })
+        : new MuxCommandFailedError({ operation: "subscribe", detail: error.message }),
+    ),
+  );
+
+export const watch = (input: {
+  readonly session: string;
+  readonly paneId: string;
+}): Stream.Stream<WallWatchEvent, WallError, ProcessRunner.ProcessRunner> =>
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const runner = yield* ProcessRunner.ProcessRunner;
+      const subscribe = mapStreamProcessError(
+        runner.streamLines(
+          zellijArgs([
+            "--session",
+            input.session,
+            "subscribe",
+            "--pane-id",
+            input.paneId,
+            "--format",
+            "json",
+          ]),
+        ),
+      ).pipe(
+        Stream.map((line) => parseSubscribeLine(input.session, line)),
+        Stream.filter((event): event is WallWatchEvent => event !== null),
+      );
+
+      let dumpInitial = true;
+      const pollDumpScreen = Stream.tick(DUMP_SCREEN_POLL).pipe(
+        Stream.mapEffect(() =>
+          runZellij(
+            ["--session", input.session, "action", "dump-screen", "--pane-id", input.paneId],
+            "dump-screen",
+          ).pipe(
+            Effect.map((stdout) => {
+              const event = dumpScreenToFrame(input.session, input.paneId, stdout, dumpInitial);
+              dumpInitial = false;
+              return event;
+            }),
+          ),
+        ),
+      );
+
+      return coalesceWatchEvents(
+        subscribe.pipe(
+          Stream.catchCause((cause) => {
+            const error = Option.getOrUndefined(Cause.failureOption(cause));
+            if (error?._tag === "MuxNotFoundError") {
+              return Stream.fail(error);
+            }
+            return pollDumpScreen;
+          }),
+        ),
+      );
+    }),
+  );

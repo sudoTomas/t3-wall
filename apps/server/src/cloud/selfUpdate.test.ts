@@ -5,6 +5,7 @@ import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/ho
 import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
 import * as Path from "effect/Path";
@@ -56,6 +57,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
   const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-self-update-test-" });
   const order: string[] = [];
   const runner = ProcessRunner.ProcessRunner.of({
+    streamLines: () => Stream.empty,
     run: (input) =>
       Effect.gen(function* () {
         if (input.command === "tar") {

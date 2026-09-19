@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import { vi } from "vite-plus/test";
 
@@ -15,11 +16,13 @@ const isUnauthorized = Schema.is(MuxInjectUnauthorizedError);
 const isMuxNotFound = Schema.is(MuxNotFoundError);
 
 const runMock = vi.fn<ProcessRunner.ProcessRunner["Service"]["run"]>();
+const streamLinesMock = vi.fn<ProcessRunner.ProcessRunner["Service"]["streamLines"]>();
 
 const ProcessRunnerTest = Layer.succeed(
   ProcessRunner.ProcessRunner,
   ProcessRunner.ProcessRunner.of({
     run: (input) => runMock(input),
+    streamLines: (input) => streamLinesMock(input),
   }),
 );
 
@@ -52,6 +55,7 @@ const CLAUDE_PANES_JSON = JSON.stringify([
 
 afterEach(() => {
   runMock.mockReset();
+  streamLinesMock.mockReset();
 });
 
 const TestLayer = layerFromContext.pipe(
@@ -130,6 +134,26 @@ describe("WallService grants", () => {
       const inventory = yield* wall.inventory({});
       expect(inventory.sessions.map((session) => session.name)).toEqual(["work"]);
       expect(inventory.sessions[0]?.panes[0]?.cmdHint).toBe("claude");
+    }).pipe(runService),
+  );
+
+  it.effect("watch streams subscribe frames without a grant", () =>
+    Effect.gen(function* () {
+      streamLinesMock.mockReturnValue(
+        Stream.make(
+          JSON.stringify({
+            event: "pane_update",
+            pane_id: "terminal_2",
+            is_initial: true,
+            viewport: ["❯ "],
+          }),
+        ),
+      );
+      const wall = yield* WallService;
+      const events = yield* wall
+        .watch({ session: "work", paneId: "terminal_2" })
+        .pipe(Stream.runCollect);
+      expect(events[0]).toMatchObject({ type: "frame", paneId: "terminal_2", initial: true });
     }).pipe(runService),
   );
 });

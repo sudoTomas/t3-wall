@@ -3387,6 +3387,10 @@ const makeWsRpcLayer = (
           observeRpcEffect(WS_METHODS.wallListGrants, wallService.listGrants(), {
             "rpc.aggregate": "wall",
           }),
+        [WS_METHODS.wallWatch]: (input) =>
+          observeRpcStream(WS_METHODS.wallWatch, wallService.watch(input), {
+            "rpc.aggregate": "wall",
+          }),
         [WS_METHODS.subscribeTerminalEvents]: (_input) =>
           observeRpcStream(
             WS_METHODS.subscribeTerminalEvents,

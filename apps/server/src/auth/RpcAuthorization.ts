@@ -150,6 +150,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.wallGrant]: AuthWallGrantScope,
   [WS_METHODS.wallRevoke]: AuthWallGrantScope,
   [WS_METHODS.wallListGrants]: AuthWallGrantScope,
+  [WS_METHODS.wallWatch]: AuthWallWatchScope,
   [WS_METHODS.previewOpen]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewNavigate]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewResize]: AuthOrchestrationOperateScope,

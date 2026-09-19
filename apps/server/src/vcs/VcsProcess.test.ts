@@ -4,6 +4,7 @@ import { HostProcessWorkingDirectory } from "@t3tools/shared/hostProcess";
 import * as Duration from "effect/Duration";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
@@ -43,7 +44,7 @@ const captureProcessResult = (
   VcsProcess.make.pipe(
     Effect.provideService(
       ProcessRunner.ProcessRunner,
-      ProcessRunner.ProcessRunner.of({ run: () => result }),
+      ProcessRunner.ProcessRunner.of({ run: () => result, streamLines: () => Stream.empty }),
     ),
     Effect.flatMap((service) => service.run(baseInput)),
     Effect.flip,
@@ -61,6 +62,7 @@ describe("VcsProcess.run", () => {
         Effect.provideService(
           ProcessRunner.ProcessRunner,
           ProcessRunner.ProcessRunner.of({
+            streamLines: () => Stream.empty,
             run: () =>
               Effect.gen(function* () {
                 const count = yield* Ref.updateAndGet(active, (held) => held + 1);

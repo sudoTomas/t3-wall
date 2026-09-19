@@ -9,8 +9,10 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
+import * as Stream from "effect/Stream";
+
 import * as ProcessRunner from "../processRunner.ts";
-import { inject, listInventory } from "../wall/ZellijCtl.ts";
+import { inject, listInventory, watch } from "../wall/ZellijCtl.ts";
 
 const WallRuntimeLayer = ProcessRunner.layer;
 
@@ -112,7 +114,20 @@ const wallSayCommand = Command.make("say", {
   ),
 );
 
+const wallWatchCommand = Command.make("watch", {
+  session: Argument.String("session").pipe(Argument.withDescription("Zellij session name.")),
+  paneId: Argument.String("pane").pipe(Argument.withDescription("Pane id, e.g. terminal_1.")),
+}).pipe(
+  Command.withDescription("Stream pane viewport frames as JSON lines until interrupted."),
+  Command.withHandler((flags) =>
+    watch({ session: flags.session, paneId: flags.paneId }).pipe(
+      Stream.runForEach((event) => Console.log(JSON.stringify(event))),
+      Effect.provide(WallRuntimeLayer),
+    ),
+  ),
+);
+
 export const wallCommand = Command.make("wall").pipe(
   Command.withDescription("Attach to live Zellij panes without spawning a T3 provider process."),
-  Command.withSubcommands([wallLsCommand, wallSayCommand]),
+  Command.withSubcommands([wallLsCommand, wallSayCommand, wallWatchCommand]),
 );

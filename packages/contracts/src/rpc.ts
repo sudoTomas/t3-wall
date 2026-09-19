@@ -21,6 +21,8 @@ import {
   WallInjectInput,
   WallInjectResult,
   WallInventoryInput,
+  WallWatchEvent,
+  WallWatchInput,
 } from "./wall.ts";
 import {
   AuthAccessStreamError,
@@ -349,6 +351,7 @@ export const WS_METHODS = {
   wallGrant: "wall.grant",
   wallRevoke: "wall.revoke",
   wallListGrants: "wall.listGrants",
+  wallWatch: "wall.watch",
 
   // Preview methods
   previewOpen: "preview.open",
@@ -1175,6 +1178,13 @@ const WsWallListGrantsRpc = Rpc.make(WS_METHODS.wallListGrants, {
   error: EnvironmentAuthorizationError,
 });
 
+const WsWallWatchRpc = Rpc.make(WS_METHODS.wallWatch, {
+  payload: WallWatchInput,
+  success: WallWatchEvent,
+  error: Schema.Union([WallError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
 const WsPreviewOpenRpc = Rpc.make(WS_METHODS.previewOpen, {
   payload: PreviewOpenInput,
   success: PreviewSessionSnapshot,
@@ -1531,6 +1541,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsWallGrantRpc,
   WsWallRevokeRpc,
   WsWallListGrantsRpc,
+  WsWallWatchRpc,
   WsSubscribeTerminalEventsRpc,
   WsSubscribeTerminalMetadataRpc,
   WsPreviewOpenRpc,

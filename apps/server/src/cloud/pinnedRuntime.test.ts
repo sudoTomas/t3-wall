@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
 import * as Path from "effect/Path";
@@ -40,6 +41,7 @@ const releaseHttpClient = (checksums: string, requests: string[] = []) =>
   });
 const extractingRunner = (fs: FileSystem.FileSystem, path: Path.Path, commands: string[] = []) =>
   ProcessRunner.ProcessRunner.of({
+    streamLines: () => Stream.empty,
     run: (input) =>
       Effect.gen(function* () {
         commands.push(input.command);
@@ -374,6 +376,7 @@ it.layer(NodeServices.layer)("ensurePinnedRuntimeInstalled", (it) => {
       const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-pinned-runtime-interrupt-" });
       const started = yield* Deferred.make<void>();
       const runner = ProcessRunner.ProcessRunner.of({
+        streamLines: () => Stream.empty,
         run: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
       });
       const install = yield* ensurePinnedRuntimeInstalled({
