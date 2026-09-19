@@ -3,6 +3,7 @@ import type { ThreadId } from "@t3tools/contracts";
 
 import {
   addThreadWallColumn,
+  assignLivePaneColumn,
   assignThreadWallColumn,
   DEFAULT_THREAD_WALL_COLUMNS,
   emptyThreadWallLayout,
@@ -11,6 +12,7 @@ import {
   normalizeThreadWallLayout,
   pruneMissingThreadWallColumns,
   removeThreadWallColumn,
+  threadWallColumnKind,
 } from "./threadWallLayout";
 
 const threadA = "thread-a" as ThreadId;
@@ -43,6 +45,41 @@ describe("assignThreadWallColumn", () => {
     const moved = assignThreadWallColumn(withFirst, 1, threadA);
     expect(moved.columns.map((column) => column.threadId)).toEqual([null, threadA]);
   });
+
+  it("clears a live pane when a thread is bound to that column", () => {
+    const live = assignLivePaneColumn(emptyThreadWallLayout(), 0, {
+      session: "work",
+      paneId: "terminal_1",
+    });
+    const assigned = assignThreadWallColumn(live, 0, threadA);
+    expect(assigned.columns[0]?.threadId).toBe(threadA);
+    expect(assigned.columns[0]?.livePane).toBeNull();
+  });
+});
+
+describe("assignLivePaneColumn", () => {
+  const pane = { session: "work", paneId: "terminal_1" };
+
+  it("binds a live pane and focuses the column", () => {
+    const layout = assignLivePaneColumn(emptyThreadWallLayout(), 1, pane);
+    expect(layout.columns[1]?.livePane).toEqual(pane);
+    expect(layout.columns[1]?.threadId).toBeNull();
+    expect(threadWallColumnKind(layout.columns[1]!)).toBe("live-pty");
+    expect(layout.focusedIndex).toBe(1);
+  });
+
+  it("moves a live pane that is already in another column", () => {
+    const withFirst = assignLivePaneColumn(emptyThreadWallLayout(), 0, pane);
+    const moved = assignLivePaneColumn(withFirst, 1, pane);
+    expect(moved.columns.map((column) => column.livePane)).toEqual([null, pane]);
+  });
+
+  it("clears a thread when a live pane is bound to that column", () => {
+    const withThread = assignThreadWallColumn(emptyThreadWallLayout(), 0, threadA);
+    const assigned = assignLivePaneColumn(withThread, 0, pane);
+    expect(assigned.columns[0]?.threadId).toBeNull();
+    expect(assigned.columns[0]?.livePane).toEqual(pane);
+  });
 });
 
 describe("addThreadWallColumn and removeThreadWallColumn", () => {
@@ -72,11 +109,40 @@ describe("normalizeThreadWallLayout", () => {
       columns: Array.from({ length: 10 }, (_, index) => ({
         id: `extra-${index}`,
         threadId: null,
+        livePane: null,
       })),
       focusedIndex: 99,
     });
     expect(normalized.columns).toHaveLength(MAX_THREAD_WALL_COLUMNS);
     expect(normalized.focusedIndex).toBe(MAX_THREAD_WALL_COLUMNS - 1);
+  });
+
+  it("keeps persisted live panes and prefers them over a thread on the same column", () => {
+    const normalized = normalizeThreadWallLayout({
+      columns: [
+        {
+          id: "col-0",
+          threadId: threadA,
+          livePane: { session: " work ", paneId: " terminal_3 " },
+        },
+      ],
+      focusedIndex: 0,
+    });
+    expect(normalized.columns[0]).toEqual({
+      id: "col-0",
+      threadId: null,
+      livePane: { session: "work", paneId: "terminal_3" },
+    });
+  });
+
+  it("treats a v1 thread-only column as a thread cell", () => {
+    const normalized = normalizeThreadWallLayout({
+      columns: [{ id: "col-0", threadId: threadA } as never],
+      focusedIndex: 0,
+    });
+    expect(normalized.columns[0]?.threadId).toBe(threadA);
+    expect(normalized.columns[0]?.livePane).toBeNull();
+    expect(threadWallColumnKind(normalized.columns[0]!)).toBe("thread");
   });
 });
 
@@ -89,6 +155,18 @@ describe("pruneMissingThreadWallColumns", () => {
     );
     const pruned = pruneMissingThreadWallColumns(layout, new Set([threadB]));
     expect(pruned.columns.map((column) => column.threadId)).toEqual([null, threadB]);
+  });
+
+  it("leaves live-pty columns alone", () => {
+    const pane = { session: "work", paneId: "terminal_1" };
+    const layout = assignLivePaneColumn(
+      assignThreadWallColumn(emptyThreadWallLayout(), 0, threadA),
+      1,
+      pane,
+    );
+    const pruned = pruneMissingThreadWallColumns(layout, new Set());
+    expect(pruned.columns[0]?.threadId).toBeNull();
+    expect(pruned.columns[1]?.livePane).toEqual(pane);
   });
 });
 

@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { resolveStorage } from "../lib/storage";
 import {
   addThreadWallColumn,
+  assignLivePaneColumn,
   assignThreadWallColumn,
   EMPTY_THREAD_WALL_LAYOUT,
   focusThreadWallColumn,
@@ -12,6 +13,7 @@ import {
   pruneMissingThreadWallColumns,
   removeThreadWallColumn,
   type ThreadWallLayout,
+  type ThreadWallLivePane,
 } from "./threadWallLayout";
 
 const THREAD_WALL_STORAGE_KEY = "t3code:thread-wall:v1";
@@ -26,6 +28,11 @@ interface ThreadWallStoreState {
   addColumn: (environmentId: EnvironmentId) => void;
   removeColumn: (environmentId: EnvironmentId, index: number) => void;
   assignColumn: (environmentId: EnvironmentId, index: number, threadId: ThreadId | null) => void;
+  assignLivePane: (
+    environmentId: EnvironmentId,
+    index: number,
+    livePane: ThreadWallLivePane | null,
+  ) => void;
   focusColumn: (environmentId: EnvironmentId, index: number) => void;
   pruneMissing: (environmentId: EnvironmentId, liveThreadIds: ReadonlySet<ThreadId>) => void;
 }
@@ -82,6 +89,19 @@ export const useThreadWallStore = create<ThreadWallStoreState>()(
               readLayout(state.layoutByEnvironmentId, environmentId),
               index,
               threadId,
+            ),
+          ),
+        }));
+      },
+      assignLivePane: (environmentId, index, livePane) => {
+        set((state) => ({
+          layoutByEnvironmentId: writeLayout(
+            state.layoutByEnvironmentId,
+            environmentId,
+            assignLivePaneColumn(
+              readLayout(state.layoutByEnvironmentId, environmentId),
+              index,
+              livePane,
             ),
           ),
         }));

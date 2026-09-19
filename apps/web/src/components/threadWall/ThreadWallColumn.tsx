@@ -4,28 +4,36 @@ import { XIcon } from "lucide-react";
 
 import ChatView from "../ChatView";
 import { useComposerDraftStore } from "../../composerDraftStore";
+import { type ThreadWallLivePane } from "../../threadWall/threadWallLayout";
 import { Button } from "../ui/button";
 import { ThreadWallEmptyColumn } from "./ThreadWallEmptyColumn";
+import { ThreadWallLiveColumn } from "./ThreadWallLiveColumn";
 
 export function ThreadWallColumn({
   environmentId,
   threadId,
+  livePane,
   assignedThreadIds,
+  assignedLivePaneKeys,
   focused,
   acceptsWindowShortcuts,
   onFocus,
   onPickThread,
+  onPickLivePane,
   onNewThread,
   onClear,
   onRemoveColumn,
 }: {
   environmentId: EnvironmentId;
   threadId: ThreadId | null;
+  livePane: ThreadWallLivePane | null;
   assignedThreadIds: ReadonlySet<ThreadId>;
+  assignedLivePaneKeys: ReadonlySet<string>;
   focused: boolean;
   acceptsWindowShortcuts: boolean;
   onFocus: () => void;
   onPickThread: (threadId: ThreadId) => void;
+  onPickLivePane: (pane: ThreadWallLivePane) => void;
   onNewThread: () => void;
   onClear: () => void;
   onRemoveColumn: (() => void) | null;
@@ -42,11 +50,35 @@ export function ThreadWallColumn({
       data-focused={focused ? "true" : "false"}
       onMouseDown={onFocus}
     >
-      {threadId === null ? (
+      {livePane != null ? (
+        <>
+          <div className="absolute top-1.5 right-1.5 z-30">
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Clear column"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClear();
+              }}
+            >
+              <XIcon />
+            </Button>
+          </div>
+          <ThreadWallLiveColumn
+            environmentId={environmentId}
+            session={livePane.session}
+            paneId={livePane.paneId}
+          />
+        </>
+      ) : threadId === null ? (
         <ThreadWallEmptyColumn
           environmentId={environmentId}
           assignedThreadIds={assignedThreadIds}
+          assignedLivePaneKeys={assignedLivePaneKeys}
           onPickThread={onPickThread}
+          onPickLivePane={onPickLivePane}
           onNewThread={onNewThread}
           onRemoveColumn={onRemoveColumn}
         />
