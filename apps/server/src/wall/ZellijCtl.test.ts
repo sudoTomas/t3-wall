@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "@effect/vitest";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import { vi } from "vite-plus/test";
 
@@ -14,6 +16,9 @@ import {
   MuxSessionNotFoundError,
   inject,
   listInventory,
+  parseSubscribeLine,
+  shouldEmitWatchEvent,
+  watch,
 } from "./ZellijCtl.ts";
 
 const isMuxNotFoundError = Schema.is(MuxNotFoundError);
@@ -23,11 +28,13 @@ const isMuxInjectRefusedError = Schema.is(MuxInjectRefusedError);
 const isMuxCommandFailedError = Schema.is(MuxCommandFailedError);
 
 const runMock = vi.fn<ProcessRunner.ProcessRunner["Service"]["run"]>();
+const streamLinesMock = vi.fn<ProcessRunner.ProcessRunner["Service"]["streamLines"]>();
 
 const ProcessRunnerTest = Layer.succeed(
   ProcessRunner.ProcessRunner,
   ProcessRunner.ProcessRunner.of({
     run: (input) => runMock(input),
+    streamLines: (input) => streamLinesMock(input),
   }),
 );
 
@@ -80,6 +87,7 @@ const CAT_PANES_JSON = JSON.stringify([
 
 afterEach(() => {
   runMock.mockReset();
+  streamLinesMock.mockReset();
 });
 
 const runWall = <A, E>(effect: Effect.Effect<A, E, ProcessRunner.ProcessRunner>) =>
@@ -267,6 +275,112 @@ describe("inject", () => {
       if (isMuxCommandFailedError(error)) {
         expect(error.message).not.toContain("secret-token-should-not-appear");
       }
+    }),
+  );
+});
+
+describe("parseSubscribeLine", () => {
+  it("parses a pane_update into a frame", () => {
+    const event = parseSubscribeLine(
+      "work",
+      JSON.stringify({
+        event: "pane_update",
+        pane_id: "terminal_1",
+        is_initial: true,
+        viewport: ["hello-from-outside", ""],
+      }),
+    );
+    expect(event).toEqual({
+      type: "frame",
+      session: "work",
+      paneId: "terminal_1",
+      initial: true,
+      viewport: ["hello-from-outside", ""],
+    });
+  });
+
+  it("parses pane_closed", () => {
+    expect(parseSubscribeLine("work", '{"event":"pane_closed","pane_id":"terminal_1"}')).toEqual({
+      type: "closed",
+      session: "work",
+      paneId: "terminal_1",
+    });
+  });
+
+  it("ignores junk", () => {
+    expect(parseSubscribeLine("work", "not-json")).toBeNull();
+  });
+});
+
+describe("shouldEmitWatchEvent", () => {
+  const frame = {
+    type: "frame" as const,
+    session: "work",
+    paneId: "terminal_1",
+    initial: false,
+    viewport: ["a"],
+  };
+
+  it("always emits initial frames and closed events", () => {
+    expect(
+      shouldEmitWatchEvent(frame, { ...frame, initial: true, viewport: ["a"] }, Duration.zero),
+    ).toBe(true);
+    expect(
+      shouldEmitWatchEvent(
+        frame,
+        { type: "closed", session: "work", paneId: "terminal_1" },
+        Duration.zero,
+      ),
+    ).toBe(true);
+  });
+
+  it("drops identical viewports", () => {
+    expect(shouldEmitWatchEvent(frame, { ...frame }, Duration.millis(200))).toBe(false);
+  });
+
+  it("drops rapid unique frames under the interval", () => {
+    expect(shouldEmitWatchEvent(frame, { ...frame, viewport: ["b"] }, Duration.millis(10))).toBe(
+      false,
+    );
+    expect(shouldEmitWatchEvent(frame, { ...frame, viewport: ["b"] }, Duration.millis(80))).toBe(
+      true,
+    );
+  });
+});
+
+describe("watch", () => {
+  it.effect("emits subscribe frames then closed", () =>
+    Effect.gen(function* () {
+      streamLinesMock.mockReturnValue(
+        Stream.make(
+          JSON.stringify({
+            event: "pane_update",
+            pane_id: "terminal_1",
+            is_initial: true,
+            viewport: ["hello"],
+          }),
+          JSON.stringify({
+            event: "pane_update",
+            pane_id: "terminal_1",
+            viewport: ["hello"],
+          }),
+          JSON.stringify({ event: "pane_closed", pane_id: "terminal_1" }),
+        ),
+      );
+      const events = yield* watch({ session: "work", paneId: "terminal_1" }).pipe(
+        Stream.runCollect,
+        runWall,
+      );
+      expect([...events]).toEqual([
+        {
+          type: "frame",
+          session: "work",
+          paneId: "terminal_1",
+          initial: true,
+          viewport: ["hello"],
+        },
+        { type: "closed", session: "work", paneId: "terminal_1" },
+      ]);
     }),
   );
 });

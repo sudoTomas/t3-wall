@@ -8,6 +8,7 @@ import {
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
@@ -161,6 +162,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
     active: true,
   };
   const runner = ProcessRunner.ProcessRunner.of({
+    streamLines: () => Stream.empty,
     run: Effect.fn("test.run_boot_service_command")(function* (
       input: ProcessRunner.ProcessRunInput,
     ) {

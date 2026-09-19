@@ -143,6 +143,10 @@ export class ProcessRunner extends Context.Service<
   ProcessRunner,
   {
     readonly run: (input: ProcessRunInput) => Effect.Effect<ProcessRunOutput, ProcessRunError>;
+    /** Lines from a long-running child. Interrupt kills the process. */
+    readonly streamLines: (
+      input: ProcessRunInput,
+    ) => Stream.Stream<string, ProcessSpawnError | ProcessReadError>;
   }
 >()("t3/processRunner") {}
 
@@ -411,8 +415,64 @@ export const make = Effect.fn("ProcessRunner.make")(function* () {
   const run: ProcessRunner["Service"]["run"] = (input) =>
     finalizeRunProcess(runProcessCore(spawner, input), input);
 
+  const streamLines: ProcessRunner["Service"]["streamLines"] = (input) =>
+    Stream.unwrapScoped(
+      Effect.gen(function* () {
+        const extendEnv = input.env !== undefined;
+        const spawnCommand = yield* resolveSpawnCommand(
+          input.command,
+          input.args,
+          input.env === undefined ? {} : { env: input.env, extendEnv },
+        );
+        const child = yield* spawner
+          .spawn(
+            ChildProcess.make(spawnCommand.command, spawnCommand.args, {
+              ...((input.spawnCwd ?? input.cwd) ? { cwd: input.spawnCwd ?? input.cwd } : {}),
+              ...(input.env !== undefined
+                ? {
+                    env: input.env,
+                    extendEnv,
+                  }
+                : {}),
+              shell: spawnCommand.shell,
+            }),
+          )
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProcessSpawnError({
+                  command: input.command,
+                  argumentCount: input.args.length,
+                  cwd: input.cwd,
+                  spawnCwd: input.spawnCwd,
+                  resolvedCommand: spawnCommand.command,
+                  resolvedArgumentCount: spawnCommand.args.length,
+                  shell: spawnCommand.shell,
+                  cause,
+                }),
+            ),
+          );
+        return child.stdout.pipe(
+          Stream.decodeText(),
+          Stream.splitLines,
+          Stream.mapError(
+            (cause) =>
+              new ProcessReadError({
+                command: input.command,
+                argumentCount: input.args.length,
+                cwd: input.cwd,
+                spawnCwd: input.spawnCwd,
+                stream: "stdout",
+                cause,
+              }),
+          ),
+        );
+      }),
+    );
+
   return ProcessRunner.of({
     run,
+    streamLines,
   });
 });
 

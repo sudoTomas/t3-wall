@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
@@ -18,7 +19,10 @@ const runMock = vi.fn<ProcessRunner.ProcessRunner["Service"]["run"]>();
 
 const ProcessRunnerTest = Layer.succeed(
   ProcessRunner.ProcessRunner,
-  ProcessRunner.ProcessRunner.of({ run: (input) => runMock(input) }),
+  ProcessRunner.ProcessRunner.of({
+    run: (input) => runMock(input),
+    streamLines: () => Stream.empty,
+  }),
 );
 
 const processOutput = (stdout: string, code = 0) =>

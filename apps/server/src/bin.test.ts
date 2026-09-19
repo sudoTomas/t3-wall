@@ -488,6 +488,7 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
       assert.include(output, "live Zellij panes");
       assert.include(output, "ls");
       assert.include(output, "say");
+      assert.include(output, "watch");
     }),
   );
 

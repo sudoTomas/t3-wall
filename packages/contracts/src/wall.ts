@@ -73,6 +73,31 @@ export const WallGrantList = Schema.Struct({
 });
 export type WallGrantList = typeof WallGrantList.Type;
 
+export const WallWatchInput = Schema.Struct({
+  session: MuxSessionName,
+  paneId: MuxPaneId,
+});
+export type WallWatchInput = typeof WallWatchInput.Type;
+
+export const WallPaneFrame = Schema.Struct({
+  type: Schema.Literal("frame"),
+  session: MuxSessionName,
+  paneId: MuxPaneId,
+  viewport: Schema.Array(Schema.String),
+  initial: Schema.Boolean,
+});
+export type WallPaneFrame = typeof WallPaneFrame.Type;
+
+export const WallPaneClosed = Schema.Struct({
+  type: Schema.Literal("closed"),
+  session: MuxSessionName,
+  paneId: MuxPaneId,
+});
+export type WallPaneClosed = typeof WallPaneClosed.Type;
+
+export const WallWatchEvent = Schema.Union([WallPaneFrame, WallPaneClosed]);
+export type WallWatchEvent = typeof WallWatchEvent.Type;
+
 export class MuxNotFoundError extends Schema.TaggedError<MuxNotFoundError>()("MuxNotFoundError", {
   detail: Schema.optional(Schema.String),
 }) {
