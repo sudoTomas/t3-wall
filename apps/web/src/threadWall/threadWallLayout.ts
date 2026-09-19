@@ -1,6 +1,7 @@
 /**
- * Pure layout for the thread wall: one row of columns, each empty or a thread.
- * Persist the result; do not put Zellij or live-pty cells here.
+ * Pure layout for the thread wall: one row of columns.
+ * A column is empty, a T3 thread, or a live-pty bind (mux session + pane).
+ * Persist the result; the multiplexer is not owned by these cells.
  */
 import type { ThreadId } from "@t3tools/contracts";
 
@@ -8,14 +9,36 @@ export const MIN_THREAD_WALL_COLUMNS = 1;
 export const MAX_THREAD_WALL_COLUMNS = 8;
 export const DEFAULT_THREAD_WALL_COLUMNS = 2;
 
+export interface ThreadWallLivePane {
+  readonly session: string;
+  readonly paneId: string;
+}
+
 export interface ThreadWallColumn {
   readonly id: string;
   readonly threadId: ThreadId | null;
+  readonly livePane: ThreadWallLivePane | null;
 }
 
 export interface ThreadWallLayout {
   readonly columns: ReadonlyArray<ThreadWallColumn>;
   readonly focusedIndex: number;
+}
+
+export type ThreadWallColumnKind = "empty" | "thread" | "live-pty";
+
+export function threadWallColumnKind(column: ThreadWallColumn): ThreadWallColumnKind {
+  if (column.livePane !== null) return "live-pty";
+  if (column.threadId !== null) return "thread";
+  return "empty";
+}
+
+export function livePaneKey(pane: ThreadWallLivePane): string {
+  return `${pane.session}\0${pane.paneId}`;
+}
+
+function sameLivePane(left: ThreadWallLivePane | null, right: ThreadWallLivePane | null): boolean {
+  return left !== null && right !== null && livePaneKey(left) === livePaneKey(right);
 }
 
 let nextColumnId = 0;
@@ -26,7 +49,7 @@ export function createThreadWallColumnId(): string {
 }
 
 function emptyColumn(id: string): ThreadWallColumn {
-  return { id, threadId: null };
+  return { id, threadId: null, livePane: null };
 }
 
 export const EMPTY_THREAD_WALL_LAYOUT: ThreadWallLayout = {
@@ -50,16 +73,33 @@ export function clampColumnCount(count: number): number {
   return Math.min(MAX_THREAD_WALL_COLUMNS, Math.max(MIN_THREAD_WALL_COLUMNS, Math.trunc(count)));
 }
 
+export function parseThreadWallLivePane(value: unknown): ThreadWallLivePane | null {
+  if (value === null || value === undefined || typeof value !== "object") return null;
+  const session = "session" in value ? value.session : undefined;
+  const paneId = "paneId" in value ? value.paneId : undefined;
+  if (typeof session !== "string" || session.trim().length === 0) return null;
+  if (typeof paneId !== "string" || paneId.trim().length === 0) return null;
+  return { session: session.trim(), paneId: paneId.trim() };
+}
+
+function normalizeColumn(column: unknown, index: number): ThreadWallColumn {
+  if (typeof column !== "object" || column === null || !("id" in column)) {
+    return emptyColumn(`wall-col-${index}`);
+  }
+  const id =
+    typeof column.id === "string" && column.id.length > 0 ? column.id : `wall-col-${index}`;
+  const livePane = parseThreadWallLivePane("livePane" in column ? column.livePane : undefined);
+  const threadId =
+    livePane === null && "threadId" in column && typeof column.threadId === "string"
+      ? (column.threadId as ThreadId)
+      : null;
+  return { id, threadId, livePane };
+}
+
 export function normalizeThreadWallLayout(layout: ThreadWallLayout): ThreadWallLayout {
-  const columns = layout.columns.slice(0, MAX_THREAD_WALL_COLUMNS).map((column, index) =>
-    typeof column === "object" && column !== null && "id" in column
-      ? {
-          id:
-            typeof column.id === "string" && column.id.length > 0 ? column.id : `wall-col-${index}`,
-          threadId: column.threadId ?? null,
-        }
-      : emptyColumn(`wall-col-${index}`),
-  );
+  const columns = layout.columns
+    .slice(0, MAX_THREAD_WALL_COLUMNS)
+    .map((column, index) => normalizeColumn(column, index));
   while (columns.length < MIN_THREAD_WALL_COLUMNS) {
     columns.push(emptyColumn(createThreadWallColumnId()));
   }
@@ -97,9 +137,25 @@ export function assignThreadWallColumn(
 ): ThreadWallLayout {
   if (index < 0 || index >= layout.columns.length) return layout;
   const columns = layout.columns.map((column, columnIndex) => {
-    if (columnIndex === index) return { ...column, threadId };
+    if (columnIndex === index) return { ...column, threadId, livePane: null };
     if (threadId !== null && column.threadId === threadId) {
       return { ...column, threadId: null };
+    }
+    return column;
+  });
+  return { columns, focusedIndex: index };
+}
+
+export function assignLivePaneColumn(
+  layout: ThreadWallLayout,
+  index: number,
+  livePane: ThreadWallLivePane | null,
+): ThreadWallLayout {
+  if (index < 0 || index >= layout.columns.length) return layout;
+  const columns = layout.columns.map((column, columnIndex) => {
+    if (columnIndex === index) return { ...column, threadId: null, livePane };
+    if (sameLivePane(column.livePane, livePane)) {
+      return { ...column, livePane: null };
     }
     return column;
   });
@@ -120,7 +176,7 @@ export function pruneMissingThreadWallColumns(
   const columns = layout.columns.map((column) => {
     if (column.threadId === null || liveThreadIds.has(column.threadId)) return column;
     changed = true;
-    return { ...column, threadId: null };
+    return { ...column, threadId: null, livePane: column.livePane };
   });
   return changed ? { ...layout, columns } : layout;
 }

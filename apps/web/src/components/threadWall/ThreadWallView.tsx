@@ -8,6 +8,7 @@ import { isElectron } from "../../env";
 import { useHandleNewThread } from "../../hooks/useHandleNewThread";
 import {
   EMPTY_THREAD_WALL_LAYOUT,
+  livePaneKey,
   MAX_THREAD_WALL_COLUMNS,
 } from "../../threadWall/threadWallLayout";
 import { useThreadWallStore } from "../../threadWall/threadWallStore";
@@ -27,6 +28,7 @@ export function ThreadWallView({ environmentId }: { environmentId: EnvironmentId
   const addColumn = useThreadWallStore((state) => state.addColumn);
   const removeColumn = useThreadWallStore((state) => state.removeColumn);
   const assignColumn = useThreadWallStore((state) => state.assignColumn);
+  const assignLivePane = useThreadWallStore((state) => state.assignLivePane);
   const focusColumn = useThreadWallStore((state) => state.focusColumn);
   const pruneMissing = useThreadWallStore((state) => state.pruneMissing);
 
@@ -58,6 +60,14 @@ export function ThreadWallView({ environmentId }: { environmentId: EnvironmentId
     return ids;
   }, [layout.columns]);
 
+  const assignedLivePaneKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const column of layout.columns) {
+      if (column.livePane != null) keys.add(livePaneKey(column.livePane));
+    }
+    return keys;
+  }, [layout.columns]);
+
   const canAddColumn = layout.columns.length < MAX_THREAD_WALL_COLUMNS;
 
   return (
@@ -87,11 +97,14 @@ export function ThreadWallView({ environmentId }: { environmentId: EnvironmentId
               key={column.id}
               environmentId={environmentId}
               threadId={column.threadId}
+              livePane={column.livePane ?? null}
               assignedThreadIds={assignedThreadIds}
+              assignedLivePaneKeys={assignedLivePaneKeys}
               focused={index === layout.focusedIndex}
               acceptsWindowShortcuts={index === layout.focusedIndex}
               onFocus={() => focusColumn(environmentId, index)}
               onPickThread={(picked) => assignColumn(environmentId, index, picked)}
+              onPickLivePane={(pane) => assignLivePane(environmentId, index, pane)}
               onNewThread={() => {
                 if (!defaultProjectRef) return;
                 void handleNewThread(defaultProjectRef, { navigate: false }).then((opened) => {
