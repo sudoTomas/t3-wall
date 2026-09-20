@@ -38,6 +38,10 @@ import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
 import { ConnectionsNewRouteScreen } from "./features/connection/ConnectionsNewRouteScreen";
 import { HomeRouteScreen } from "./features/home/HomeRouteScreen";
+import { WallEnvironmentsRouteScreen } from "./features/wall/WallEnvironmentsRouteScreen";
+import { WallPaneRouteScreen } from "./features/wall/WallPaneRouteScreen";
+import { WallPanesRouteScreen } from "./features/wall/WallPanesRouteScreen";
+import { WallSessionsRouteScreen } from "./features/wall/WallSessionsRouteScreen";
 import { AddProjectDestinationRoute } from "./features/projects/AddProjectDestinationRoute";
 import { AddProjectLocalRoute } from "./features/projects/AddProjectLocalRoute";
 import { AddProjectRepositoryRoute } from "./features/projects/AddProjectRepositoryRoute";
@@ -584,6 +588,35 @@ export const RootStack = createNativeStackNavigator({
         headerBackVisible: false,
         ...getCompactBrandHeaderOptions(),
       },
+    }),
+    WallEnvironments: createNativeStackScreen({
+      screen: WallEnvironmentsRouteScreen,
+      linking: "wall",
+      options: {
+        ...GLASS_HEADER_OPTIONS,
+        title: "Live panes",
+      },
+    }),
+    WallSessions: createNativeStackScreen({
+      screen: WallSessionsRouteScreen,
+      linking: "wall/:environmentId",
+      options: {
+        ...GLASS_HEADER_OPTIONS,
+        title: "Sessions",
+      },
+    }),
+    WallPanes: createNativeStackScreen({
+      screen: WallPanesRouteScreen,
+      linking: "wall/:environmentId/sessions/:session",
+      options: {
+        ...GLASS_HEADER_OPTIONS,
+        title: "Panes",
+      },
+    }),
+    WallPane: createNativeStackScreen({
+      screen: WallPaneRouteScreen,
+      linking: "wall/:environmentId/sessions/:session/panes/:paneId",
+      options: SOLID_HEADER_OPTIONS,
     }),
     Thread: createNativeStackScreen({
       screen: ThreadRouteScreen,
