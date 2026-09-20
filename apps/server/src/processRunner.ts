@@ -416,7 +416,7 @@ export const make = Effect.fn("ProcessRunner.make")(function* () {
     finalizeRunProcess(runProcessCore(spawner, input), input);
 
   const streamLines: ProcessRunner["Service"]["streamLines"] = (input) =>
-    Stream.unwrapScoped(
+    Stream.unwrap(
       Effect.gen(function* () {
         const extendEnv = input.env !== undefined;
         const spawnCommand = yield* resolveSpawnCommand(

@@ -124,6 +124,30 @@ describe("runProcess", () => {
     }).pipe(Effect.provide(layer));
   });
 
+  it.effect("streams stdout lines from a spawned process", () => {
+    const spawner = makeSpawner((command) =>
+      Effect.sync(() => {
+        expect(command.command).toBe("fake");
+        expect(command.args).toEqual(["--lines"]);
+        return makeHandle({ stdout: "hello\nworld\n" });
+      }),
+    );
+    const layer = ProcessRunner.layer.pipe(
+      Layer.provide(Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner)),
+    );
+
+    return Effect.gen(function* () {
+      const runner = yield* ProcessRunner.ProcessRunner;
+      const lines = yield* runner
+        .streamLines({
+          command: "fake",
+          args: ["--lines"],
+        })
+        .pipe(Stream.runCollect);
+      expect([...lines]).toEqual(["hello", "world"]);
+    }).pipe(Effect.provide(layer));
+  });
+
   it.effect("resolves and escapes Windows command shims before spawning", () => {
     const spawner = makeSpawner((command) =>
       Effect.sync(() => {
