@@ -94,10 +94,13 @@ export const preparePairingRegistration = Effect.fn(
   }).pipe(Effect.mapError(mapRemoteEnvironmentError));
   const compatibilityError = orchestrationProtocolCompatibilityError(descriptor);
   if (compatibilityError !== null) return yield* compatibilityError;
+  // Do not send presentation.scopes on pairing exchange. The server then
+  // issues grant.scopes from the pairing token. Requesting standard client
+  // scopes downscopes administrative tokens (wall:watch / wall:inject /
+  // wall:grant) and leaves Live panes with missing-scope errors.
   const access = yield* bootstrapRemoteBearerSession({
     httpBaseUrl: target.httpBaseUrl,
     credential: target.credential,
-    scopes: presentation.scopes,
     clientMetadata: presentation.metadata,
   }).pipe(Effect.mapError(mapRemoteEnvironmentError));
   const connectionId = `bearer:${descriptor.environmentId}`;
