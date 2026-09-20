@@ -26,6 +26,10 @@ type ConnectionsNewRouteParams = {
   readonly autoConnect?: string;
 };
 
+// Survive React Strict Mode remounts so a one-time pairing token is not
+// consumed twice (first success, then "credential is invalid").
+const attemptedDevAutoConnectUrls = new Set<string>();
+
 export function ConnectionsNewRouteScreen({
   route,
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
@@ -179,11 +183,16 @@ export function ConnectionsNewRouteScreen({
   }, [codeInput, connectAndClose, hostInput]);
 
   useEffect(() => {
-    if (!shouldAutoConnect || attemptedAutoConnectRef.current === routePairingUrl) {
+    if (
+      !shouldAutoConnect ||
+      attemptedAutoConnectRef.current === routePairingUrl ||
+      attemptedDevAutoConnectUrls.has(routePairingUrl)
+    ) {
       return;
     }
 
     attemptedAutoConnectRef.current = routePairingUrl;
+    attemptedDevAutoConnectUrls.add(routePairingUrl);
     void connectAndClose(routePairingUrl, true);
   }, [connectAndClose, routePairingUrl, shouldAutoConnect]);
 
