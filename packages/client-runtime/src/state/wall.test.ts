@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { applyWallWatchEvent, emptyWallWatchView, isAgentCmdHint } from "./wallWatchState";
+import { applyWallWatchEvent, emptyWallWatchView, isAgentCmdHint } from "./wall.ts";
 
 describe("applyWallWatchEvent", () => {
   it("replaces the viewport on a frame and reopens a closed pane", () => {

@@ -27,6 +27,7 @@ import { useThreadSearch } from "../../state/queries";
 import { useWorkspaceState } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { wallEntryRoute } from "../wall/wallNavigation";
 import { ThreadSearchMatchExcerpt } from "../threads/thread-search-match";
 import {
   filterCommandPaletteItems,
@@ -56,6 +57,7 @@ const ACTION_ICONS: Record<string, AppSymbolName> = {
   archive: "archivebox",
   files: "doc.text",
   terminal: "terminal",
+  wall: "terminal",
   review: "arrow.triangle.pull",
   copyThreadReference: "link",
 };
@@ -205,6 +207,25 @@ export function CommandPalette(props: {
           }),
       },
       {
+        key: "wall",
+        kind: "action",
+        title: "Live panes",
+        searchTerms: ["wall", "zellij", "pane", "inject", "mux"],
+        run: () => {
+          const route = wallEntryRoute(
+            environments.map((environment) => ({
+              environmentId: environment.environmentId,
+            })),
+            null,
+          );
+          if (route.name === "WallEnvironments") {
+            navigation.navigate("WallEnvironments");
+          } else {
+            navigation.navigate("WallSessions", route.params);
+          }
+        },
+      },
+      {
         key: "usage",
         kind: "action",
         title: "Usage",
@@ -312,6 +333,7 @@ export function CommandPalette(props: {
   }, [
     activeThread,
     activeThreadRef,
+    environments,
     navigation,
     projects,
     runCommand,

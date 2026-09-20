@@ -2,13 +2,13 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { isAgentCmdHint } from "@t3tools/client-runtime/state/wall";
 import type { EnvironmentId, MuxCmdHint, MuxPane } from "@t3tools/contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { wallGrant, wallInject, wallInventory, wallListGrants, wallWatch } from "../../state/wall";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useEnvironmentQuery } from "../../state/query";
-import { isAgentCmdHint } from "../../threadWall/wallWatchState";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";

@@ -1,6 +1,6 @@
 import { ScreenScrollView as ScrollView } from "../../components/ScreenScrollView";
 import { useAuth, useUser } from "@clerk/expo";
-import { useNavigation } from "@react-navigation/native";
+import { useLinkTo, useNavigation } from "@react-navigation/native";
 import { Platform, View } from "react-native";
 import { deriveProjectGroupLabel } from "@t3tools/client-runtime/state/project-grouping";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +16,7 @@ import {
   SettingsEnvironmentFilterHeader,
 } from "./components/SettingsEnvironmentFilterHeader";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
+import { wallEntryPath, wallEntryRoute } from "../wall/wallNavigation";
 
 export function SettingsRouteScreen() {
   const content = hasCloudPublicConfig() ? (
@@ -117,6 +118,7 @@ function LocalSettingsRouteScreen() {
 }
 
 function SettingsIndexSections() {
+  const linkTo = useLinkTo();
   const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
   const noServerTargets = selectedTargets.length === 0;
   const selectedProject = projectGroups.find((group) => group.key === selectedProjectKey);
@@ -135,6 +137,18 @@ function SettingsIndexSections() {
       : (selectedProject?.label ?? "Unavailable project");
   return (
     <>
+      <SettingsSection title="Live panes">
+        <SettingsRow
+          icon="terminal"
+          label="Live panes"
+          onPress={() => {
+            const selected =
+              selectedTargets.length === 1 ? selectedTargets[0]!.environmentId : null;
+            linkTo(wallEntryPath(wallEntryRoute(selectedTargets, selected)));
+          }}
+        />
+      </SettingsSection>
+
       <SettingsSection title="Interface">
         <SettingsRow icon="paintbrush" label="Appearance" target="SettingsAppearance" />
         {Platform.OS === "ios" ? (
