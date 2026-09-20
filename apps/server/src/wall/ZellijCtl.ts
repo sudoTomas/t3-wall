@@ -395,7 +395,7 @@ export const watch = (input: {
       return coalesceWatchEvents(
         subscribe.pipe(
           Stream.catchCause((cause) => {
-            const error = Option.getOrUndefined(Cause.failureOption(cause));
+            const error = Option.getOrUndefined(Cause.findErrorOption(cause));
             if (error?._tag === "MuxNotFoundError") {
               return Stream.fail(error);
             }

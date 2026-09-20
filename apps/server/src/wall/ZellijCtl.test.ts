@@ -383,4 +383,39 @@ describe("watch", () => {
       ]);
     }),
   );
+
+  it.effect("falls back to dump-screen when subscribe fails", () =>
+    Effect.gen(function* () {
+      streamLinesMock.mockReturnValue(
+        Stream.fail(
+          new ProcessRunner.ProcessReadError({
+            command: "zellij",
+            argumentCount: 6,
+            stream: "stdout",
+            cause: new Error("subscribe died"),
+          }),
+        ),
+      );
+      runMock.mockImplementation((input) => {
+        if (input.args.includes("dump-screen")) {
+          return processOutput("from-dump\n");
+        }
+        return processOutput("");
+      });
+      const events = yield* watch({ session: "work", paneId: "terminal_1" }).pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        runWall,
+      );
+      expect([...events]).toEqual([
+        {
+          type: "frame",
+          session: "work",
+          paneId: "terminal_1",
+          initial: true,
+          viewport: ["from-dump", ""],
+        },
+      ]);
+    }),
+  );
 });
