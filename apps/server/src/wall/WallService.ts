@@ -19,7 +19,7 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 
 import * as ProcessRunner from "../processRunner.ts";
-import { inject as injectPane, listInventory, watch as watchPane } from "./ZellijCtl.ts";
+import { inject as injectPane, listInventory, watch as watchPane } from "./mux.ts";
 import * as WallGrants from "./WallGrants.ts";
 
 export class WallService extends Context.Service<

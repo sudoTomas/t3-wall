@@ -15,16 +15,23 @@ import {
   type MuxInventory,
   type MuxPane,
   type MuxSession,
+  type WallError,
   type WallWatchEvent,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
-import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import * as ProcessRunner from "../processRunner.ts";
+import { accountHintFrom, cmdHintFrom, isAgentHint } from "./cmdHint.ts";
+import {
+  DUMP_SCREEN_POLL,
+  clipViewport,
+  coalesceWatchEvents,
+  dumpScreenToFrame,
+} from "./watchFrames.ts";
 
 export {
   MuxCommandFailedError,
@@ -34,7 +41,7 @@ export {
   MuxSessionNotFoundError,
 };
 
-const AGENT_CMD_HINTS = ["claude", "grok", "codex", "cursor", "opencode", "antigravity"] as const;
+export { dumpScreenToFrame, shouldEmitWatchEvent } from "./watchFrames.ts";
 
 export type { MuxCmdHint, MuxInventory, MuxPane, MuxSession };
 
@@ -65,32 +72,6 @@ const decodePanesJson = Schema.decodeUnknownEffect(Schema.fromJsonString(ZellijP
 
 const SESSION_LINE =
   /^(?<name>\S+)\s+\[Created\s+(?<created>[^\]]+)\](?<exited>\s+\(EXITED[^)]*\))?/;
-
-const CLAUDE_CONFIG_DIR = /CLAUDE_CONFIG_DIR=(\S+)/;
-
-function isAgentHint(hint: MuxCmdHint): boolean {
-  return (AGENT_CMD_HINTS as ReadonlyArray<string>).includes(hint);
-}
-
-function cmdHintFrom(command: string | null | undefined, title: string): MuxCmdHint {
-  const hay = `${command ?? ""} ${title}`.toLowerCase();
-  for (const hint of AGENT_CMD_HINTS) {
-    if (new RegExp(`\\b${hint}\\b`).test(hay)) return hint;
-  }
-  const binary = (command ?? "").trim().split(/\s+/).at(-1);
-  if (binary === "zsh" || binary === "bash" || binary === "sh" || binary === "fish") {
-    return "zsh";
-  }
-  return "unknown";
-}
-
-function accountHintFrom(command: string | null | undefined, title: string): string | undefined {
-  const fromEnv = command?.match(CLAUDE_CONFIG_DIR)?.[1];
-  if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
-  const trimmedTitle = title.trim();
-  if (trimmedTitle === "claude-work" || trimmedTitle === "claude-personal") return trimmedTitle;
-  return undefined;
-}
 
 function parseSessionLines(stdout: string): ReadonlyArray<Omit<MuxSession, "panes">> {
   const sessions: Array<Omit<MuxSession, "panes">> = [];
@@ -255,10 +236,6 @@ export const inject = Effect.fn("wall.inject")(function* (input: MuxInjectInput)
   return { accepted: true } as const;
 });
 
-const MAX_VIEWPORT_LINES = 200;
-const MIN_FRAME_INTERVAL = Duration.millis(80);
-const DUMP_SCREEN_POLL = Duration.millis(200);
-
 const SubscribeLine = Schema.Struct({
   event: Schema.optional(Schema.String),
   pane_id: Schema.optional(Schema.String),
@@ -266,10 +243,6 @@ const SubscribeLine = Schema.Struct({
   is_initial: Schema.optional(Schema.Boolean),
 });
 const decodeSubscribeLine = Schema.decodeUnknownOption(SubscribeLine);
-
-function clipViewport(lines: ReadonlyArray<string>): ReadonlyArray<string> {
-  return lines.slice(0, MAX_VIEWPORT_LINES);
-}
 
 export function parseSubscribeLine(session: string, line: string): WallWatchEvent | null {
   const trimmed = line.trim();
@@ -297,49 +270,6 @@ export function parseSubscribeLine(session: string, line: string): WallWatchEven
     initial: payload.is_initial === true,
   };
 }
-
-export function dumpScreenToFrame(
-  session: string,
-  paneId: string,
-  stdout: string,
-  initial: boolean,
-): WallWatchEvent {
-  return {
-    type: "frame",
-    session,
-    paneId,
-    viewport: clipViewport(stdout.split("\n")),
-    initial,
-  };
-}
-
-export function shouldEmitWatchEvent(
-  previous: WallWatchEvent | null,
-  next: WallWatchEvent,
-  elapsedSinceEmit: Duration.Duration,
-): boolean {
-  if (next.type === "closed") return true;
-  if (next.type === "frame" && next.initial) return true;
-  if (previous?.type === "frame" && next.type === "frame") {
-    if (previous.viewport.join("\n") === next.viewport.join("\n")) return false;
-  }
-  return Duration.toMillis(elapsedSinceEmit) >= Duration.toMillis(MIN_FRAME_INTERVAL);
-}
-
-const coalesceWatchEvents = (events: Stream.Stream<WallWatchEvent, WallError, never>) => {
-  let previous: WallWatchEvent | null = null;
-  let lastEmitMs = 0;
-  return events.pipe(
-    Stream.filter((event) => {
-      const now = Date.now();
-      const elapsed = Duration.millis(Math.max(0, now - lastEmitMs));
-      if (!shouldEmitWatchEvent(previous, event, elapsed)) return false;
-      previous = event;
-      lastEmitMs = now;
-      return true;
-    }),
-  );
-};
 
 const mapStreamProcessError = <A>(
   stream: Stream.Stream<A, ProcessRunner.ProcessSpawnError | ProcessRunner.ProcessReadError>,

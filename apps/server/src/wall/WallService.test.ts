@@ -109,11 +109,11 @@ describe("WallService grants", () => {
 
   it.effect("inventory maps a missing zellij to mux_not_found", () =>
     Effect.gen(function* () {
-      runMock.mockReturnValueOnce(
+      runMock.mockImplementation((input) =>
         Effect.fail(
           new ProcessRunner.ProcessSpawnError({
-            command: "zellij",
-            argumentCount: 2,
+            command: input.command,
+            argumentCount: input.args.length,
             cause: new Error("ENOENT"),
           }),
         ),
@@ -127,6 +127,7 @@ describe("WallService grants", () => {
   it.effect("inventory lists live sessions after grant is irrelevant", () =>
     Effect.gen(function* () {
       runMock.mockImplementation((input) => {
+        if (input.command === "osascript") return processOutput(JSON.stringify({ windows: [] }));
         if (input.args[0] === "list-sessions") return processOutput(LIST_SESSIONS_OUTPUT);
         return processOutput(CLAUDE_PANES_JSON);
       });
@@ -134,6 +135,45 @@ describe("WallService grants", () => {
       const inventory = yield* wall.inventory({});
       expect(inventory.sessions.map((session) => session.name)).toEqual(["work"]);
       expect(inventory.sessions[0]?.panes[0]?.cmdHint).toBe("claude");
+    }).pipe(runService),
+  );
+
+  it.effect("denies iTerm inject until that window is granted", () =>
+    Effect.gen(function* () {
+      const paneId = "25EB0C9F-265D-42D5-AF9C-F81D8594552F";
+      runMock.mockImplementation((input) => {
+        if (input.command === "osascript" && input.args.includes("JavaScript")) {
+          return processOutput(
+            JSON.stringify({
+              windows: [
+                {
+                  id: "185",
+                  panes: [{ id: paneId, title: "claude", tabIndex: 0 }],
+                },
+              ],
+            }),
+          );
+        }
+        if (input.command === "osascript") return processOutput("ok");
+        return processOutput("");
+      });
+      const wall = yield* WallService;
+      const denied = yield* wall
+        .inject({
+          session: "iterm:185",
+          paneId,
+          text: "what file am I in?",
+        })
+        .pipe(Effect.flip);
+      expect(isUnauthorized(denied)).toBe(true);
+
+      yield* wall.grant("iterm:185");
+      const result = yield* wall.inject({
+        session: "iterm:185",
+        paneId,
+        text: "what file am I in?",
+      });
+      expect(result.accepted).toBe(true);
     }).pipe(runService),
   );
 

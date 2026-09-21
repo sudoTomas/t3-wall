@@ -1,8 +1,8 @@
 /**
- * `t3 wall` - list and type into live Zellij panes from outside a session.
+ * `t3 wall` - list and type into live Zellij or iTerm panes from outside a session.
  *
- * Slice 1 is CLI only. `ls` is inventory; `say` pastes into a pane. Neither
- * starts a provider process. Killing this CLI does not kill the Zellij session.
+ * `ls` is inventory; `say` pastes into a pane. Neither starts a provider process.
+ * Killing this CLI does not kill the live pane.
  */
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
@@ -12,7 +12,7 @@ import { Argument, Command, Flag } from "effect/unstable/cli";
 import * as Stream from "effect/Stream";
 
 import * as ProcessRunner from "../processRunner.ts";
-import { inject, listInventory, watch } from "../wall/ZellijCtl.ts";
+import { inject, listInventory, watch } from "../wall/mux.ts";
 
 const WallRuntimeLayer = ProcessRunner.layer;
 
@@ -22,7 +22,7 @@ const jsonFlag = Flag.Boolean("json").pipe(
 );
 
 const sessionFlag = Flag.String("session").pipe(
-  Flag.withDescription("Limit inventory to one named Zellij session."),
+  Flag.withDescription("Limit inventory to one named session (Zellij name or iterm:<windowId>)."),
   Flag.optional,
 );
 
@@ -49,7 +49,7 @@ function formatInventoryText(inventory: {
   }>;
 }): string {
   if (inventory.sessions.length === 0) {
-    return "No Zellij sessions.";
+    return "No live sessions.";
   }
   const lines: Array<string> = [];
   for (const session of inventory.sessions) {
@@ -75,7 +75,7 @@ const wallLsCommand = Command.make("ls", {
   json: jsonFlag,
   session: sessionFlag,
 }).pipe(
-  Command.withDescription("List named Zellij sessions and their terminal panes."),
+  Command.withDescription("List named Zellij and iTerm sessions and their terminal panes."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const inventory = yield* listInventory(
@@ -89,8 +89,12 @@ const wallLsCommand = Command.make("ls", {
 );
 
 const wallSayCommand = Command.make("say", {
-  session: Argument.String("session").pipe(Argument.withDescription("Zellij session name.")),
-  paneId: Argument.String("pane").pipe(Argument.withDescription("Pane id, e.g. terminal_1.")),
+  session: Argument.String("session").pipe(
+    Argument.withDescription("Zellij session name or iterm:<windowId>."),
+  ),
+  paneId: Argument.String("pane").pipe(
+    Argument.withDescription("Pane id, e.g. terminal_1 or an iTerm session UUID."),
+  ),
   text: Argument.String("text").pipe(
     Argument.withDescription("Text to paste into the pane."),
     Argument.variadic,
@@ -98,7 +102,7 @@ const wallSayCommand = Command.make("say", {
   toShell: toShellFlag,
   noSubmit: noSubmitFlag,
 }).pipe(
-  Command.withDescription("Paste text into a live Zellij pane, then Enter unless --no-submit."),
+  Command.withDescription("Paste text into a live pane, then Enter unless --no-submit."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const text = flags.text.join(" ");
@@ -115,8 +119,12 @@ const wallSayCommand = Command.make("say", {
 );
 
 const wallWatchCommand = Command.make("watch", {
-  session: Argument.String("session").pipe(Argument.withDescription("Zellij session name.")),
-  paneId: Argument.String("pane").pipe(Argument.withDescription("Pane id, e.g. terminal_1.")),
+  session: Argument.String("session").pipe(
+    Argument.withDescription("Zellij session name or iterm:<windowId>."),
+  ),
+  paneId: Argument.String("pane").pipe(
+    Argument.withDescription("Pane id, e.g. terminal_1 or an iTerm session UUID."),
+  ),
 }).pipe(
   Command.withDescription("Stream pane viewport frames as JSON lines until interrupted."),
   Command.withHandler((flags) =>
@@ -128,6 +136,8 @@ const wallWatchCommand = Command.make("watch", {
 );
 
 export const wallCommand = Command.make("wall").pipe(
-  Command.withDescription("Attach to live Zellij panes without spawning a T3 provider process."),
+  Command.withDescription(
+    "Attach to live Zellij or iTerm panes without spawning a T3 provider process.",
+  ),
   Command.withSubcommands([wallLsCommand, wallSayCommand, wallWatchCommand]),
 );
