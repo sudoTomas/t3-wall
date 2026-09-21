@@ -14,7 +14,7 @@ import {
   MuxPaneNotFoundError,
   MuxSessionNotFoundError,
 } from "@t3tools/contracts";
-import { inject, isItermSession, listInventory, watch } from "./ItermCtl.ts";
+import { inject, isItermSession, listInventory, parseItermWatchLine, watch } from "./ItermCtl.ts";
 
 const isItermNotFoundError = Schema.is(ItermNotFoundError);
 const isMuxSessionNotFoundError = Schema.is(MuxSessionNotFoundError);
@@ -245,12 +245,46 @@ describe("inject", () => {
   );
 });
 
+describe("parseItermWatchLine", () => {
+  it("parses a visible-screen frame", () => {
+    expect(
+      parseItermWatchLine(
+        "iterm:185",
+        CLAUDE_PANE_ID,
+        JSON.stringify({ event: "frame", viewport: ["hello"], initial: true }),
+      ),
+    ).toEqual({
+      type: "frame",
+      session: "iterm:185",
+      paneId: CLAUDE_PANE_ID,
+      initial: true,
+      viewport: ["hello"],
+    });
+  });
+
+  it("parses closed and python-api gaps", () => {
+    expect(parseItermWatchLine("iterm:185", CLAUDE_PANE_ID, '{"event":"closed"}')).toEqual({
+      type: "closed",
+      session: "iterm:185",
+      paneId: CLAUDE_PANE_ID,
+    });
+    expect(
+      parseItermWatchLine("iterm:185", CLAUDE_PANE_ID, '{"error":"python_api_unavailable"}'),
+    ).toBe("unavailable");
+    expect(parseItermWatchLine("iterm:185", CLAUDE_PANE_ID, "not-json")).toBeNull();
+  });
+});
+
 describe("watch", () => {
-  it.effect("emits an initial contents frame", () =>
+  it.effect("emits Python API screen-streamer frames", () =>
     Effect.gen(function* () {
-      runMock.mockReturnValue(processOutput(JSON.stringify({ viewport: ["hello"] })));
+      streamLinesMock.mockReturnValue(
+        Stream.make(
+          JSON.stringify({ event: "frame", viewport: ["hello"], initial: true }),
+          JSON.stringify({ event: "closed" }),
+        ),
+      );
       const events = yield* watch({ session: "iterm:185", paneId: CLAUDE_PANE_ID }).pipe(
-        Stream.take(1),
         Stream.runCollect,
         runWall,
       );
@@ -262,20 +296,60 @@ describe("watch", () => {
           initial: true,
           viewport: ["hello"],
         },
+        { type: "closed", session: "iterm:185", paneId: CLAUDE_PANE_ID },
       ]);
     }),
   );
 
-  it.effect("emits closed when the iTerm session is already gone", () =>
+  it.effect("falls back to AppleScript contents when the Python API is missing", () =>
     Effect.gen(function* () {
-      runMock.mockReturnValue(processOutput(JSON.stringify({ error: "pane_not_found" })));
+      streamLinesMock.mockReturnValue(
+        Stream.fail(
+          new ProcessRunner.ProcessReadError({
+            command: "python3",
+            argumentCount: 3,
+            stream: "stdout",
+            cause: new Error("python-api died"),
+          }),
+        ),
+      );
+      runMock.mockReturnValue(processOutput(JSON.stringify({ viewport: ["from-applescript"] })));
       const events = yield* watch({ session: "iterm:185", paneId: CLAUDE_PANE_ID }).pipe(
         Stream.take(1),
         Stream.runCollect,
         runWall,
       );
       expect([...events]).toEqual([
-        { type: "closed", session: "iterm:185", paneId: CLAUDE_PANE_ID },
+        {
+          type: "frame",
+          session: "iterm:185",
+          paneId: CLAUDE_PANE_ID,
+          initial: true,
+          viewport: ["from-applescript"],
+        },
+      ]);
+    }),
+  );
+
+  it.effect("falls back to AppleScript contents when iterm2 is not importable", () =>
+    Effect.gen(function* () {
+      streamLinesMock.mockReturnValue(
+        Stream.make(JSON.stringify({ error: "python_api_unavailable" })),
+      );
+      runMock.mockReturnValue(processOutput(JSON.stringify({ viewport: ["from-applescript"] })));
+      const events = yield* watch({ session: "iterm:185", paneId: CLAUDE_PANE_ID }).pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        runWall,
+      );
+      expect([...events]).toEqual([
+        {
+          type: "frame",
+          session: "iterm:185",
+          paneId: CLAUDE_PANE_ID,
+          initial: true,
+          viewport: ["from-applescript"],
+        },
       ]);
     }),
   );
