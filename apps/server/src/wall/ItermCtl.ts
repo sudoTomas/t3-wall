@@ -1,10 +1,15 @@
 /**
- * ItermCtl talks to a running iTerm2 via osascript.
+ * ItermCtl talks to a running iTerm2 via osascript and, for watch, the Python API.
  *
- * Inventory and watch use JXA. Inject uses AppleScript `write text`, which
- * types into the session iTerm owns — not `/dev/ttys`, HID, or Screen Recording.
+ * Inventory uses JXA. Inject uses AppleScript `write text`, which types into the
+ * session iTerm owns — not `/dev/ttys`, HID, or Screen Recording. Watch prefers
+ * the Python API visible screen (`async_get_screen_contents` / screen streamer)
+ * and falls back to polling AppleScript `contents` if the library is missing.
  * Session ids are `iterm:<windowId>`; pane ids are iTerm session UUIDs.
  */
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 import {
   ItermNotFoundError,
   MuxCommandFailedError,
@@ -17,13 +22,20 @@ import {
   type WallError,
   type WallWatchEvent,
 } from "@t3tools/contracts";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import * as ProcessRunner from "../processRunner.ts";
 import { accountHintFrom, cmdHintFrom, isAgentHint } from "./cmdHint.ts";
-import { DUMP_SCREEN_POLL, coalesceWatchEvents, dumpScreenToFrame } from "./watchFrames.ts";
+import {
+  DUMP_SCREEN_POLL,
+  clipViewport,
+  coalesceWatchEvents,
+  dumpScreenToFrame,
+} from "./watchFrames.ts";
 
 interface MuxInjectInput {
   readonly session: string;
@@ -152,6 +164,108 @@ const VIEWPORT_SCRIPT = `function run(argv) {
   }
 }
 `;
+
+const ITERM_WATCH_SCRIPT = `
+import asyncio, json, sys
+def emit(obj):
+    print(json.dumps(obj, ensure_ascii=False), flush=True)
+try:
+    import iterm2
+except ImportError:
+    emit({"error": "python_api_unavailable"})
+    raise SystemExit(0)
+sid = sys.argv[1]
+def lines_of(contents):
+    out = []
+    n = min(int(contents.number_of_lines), 200)
+    for i in range(n):
+        out.append(contents.line(i).string.replace(chr(0), "").split(chr(10))[0].rstrip())
+    return out
+async def main():
+    try:
+        connection = await asyncio.wait_for(iterm2.Connection.async_create(), 5)
+    except Exception:
+        emit({"error": "python_api_unavailable"})
+        return
+    app = await iterm2.async_get_app(connection)
+    session = app.get_session_by_id(sid)
+    if session is None:
+        emit({"event": "closed"})
+        return
+    async def stream_frames():
+        contents = await session.async_get_screen_contents()
+        emit({"event": "frame", "viewport": lines_of(contents), "initial": True})
+        async with session.get_screen_streamer(want_contents=True) as streamer:
+            while True:
+                contents = await streamer.async_get()
+                if contents is None:
+                    continue
+                emit({"event": "frame", "viewport": lines_of(contents), "initial": False})
+    async def watch_death():
+        async with iterm2.SessionTerminationMonitor(connection) as mon:
+            while True:
+                dead = await mon.async_get()
+                if dead == sid:
+                    return
+    frame_task = asyncio.create_task(stream_frames())
+    death_task = asyncio.create_task(watch_death())
+    try:
+        await asyncio.wait([frame_task, death_task], return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        frame_task.cancel()
+        death_task.cancel()
+        emit({"event": "closed"})
+asyncio.run(main())
+`.trim();
+
+function resolveItermPython(): string {
+  const fromEnv = process.env.T3_ITERM_PYTHON;
+  if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+  const local = NodePath.join(NodeOS.homedir(), ".local/share/t3-iterm2/bin/python3");
+  if (NodeFS.existsSync(local)) return local;
+  return "python3";
+}
+
+const ItermWatchLine = Schema.Struct({
+  event: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+  viewport: Schema.optional(Schema.Array(Schema.String)),
+  initial: Schema.optional(Schema.Boolean),
+});
+const decodeItermWatchLine = Schema.decodeUnknownOption(ItermWatchLine);
+
+export type ParsedItermWatchLine = WallWatchEvent | "unavailable" | "not_running";
+
+export function parseItermWatchLine(
+  session: string,
+  paneId: string,
+  line: string,
+): ParsedItermWatchLine | null {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return null;
+  let json: unknown;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  const decoded = decodeItermWatchLine(json);
+  if (decoded._tag === "None") return null;
+  const payload = decoded.value;
+  if (payload.error === "python_api_unavailable") return "unavailable";
+  if (payload.error === "not_running") return "not_running";
+  if (payload.error === "pane_not_found" || payload.event === "closed") {
+    return { type: "closed", session, paneId };
+  }
+  if (payload.event !== "frame") return null;
+  return {
+    type: "frame",
+    session,
+    paneId,
+    viewport: clipViewport(payload.viewport ?? []),
+    initial: payload.initial === true,
+  };
+}
 
 const INJECT_SCRIPT = `on run argv
   set theSessionId to item 1 of argv
@@ -367,37 +481,71 @@ const readViewport = Effect.fn("wall.iterm.readViewport")(function* (input: {
   return { viewport: decoded.viewport ?? [] } as const;
 });
 
+const mapPythonStreamError = <A>(
+  stream: Stream.Stream<A, ProcessRunner.ProcessSpawnError | ProcessRunner.ProcessReadError>,
+) => stream.pipe(Stream.mapError((error) => commandFailed("python-api", error.message)));
+
 export const watch = (input: {
   readonly session: string;
   readonly paneId: string;
 }): Stream.Stream<WallWatchEvent, WallError, ProcessRunner.ProcessRunner> =>
   Stream.unwrap(
-    Effect.sync(() => {
+    Effect.gen(function* () {
+      const runner = yield* ProcessRunner.ProcessRunner;
+      const subscribe = mapPythonStreamError(
+        runner.streamLines({
+          command: resolveItermPython(),
+          args: ["-c", ITERM_WATCH_SCRIPT, input.paneId],
+        }),
+      ).pipe(
+        Stream.map((line) => parseItermWatchLine(input.session, input.paneId, line)),
+        Stream.filter((item): item is ParsedItermWatchLine => item !== null),
+        Stream.mapEffect((item) => {
+          if (item === "unavailable") {
+            return Effect.fail(commandFailed("python-api", "unavailable"));
+          }
+          if (item === "not_running") {
+            return Effect.fail(new ItermNotFoundError({}));
+          }
+          return Effect.succeed(item);
+        }),
+      );
+
       let dumpInitial = true;
-      return coalesceWatchEvents(
-        Stream.tick(DUMP_SCREEN_POLL).pipe(
-          Stream.mapEffect(() =>
-            readViewport(input).pipe(
-              Effect.map((result) => {
-                if ("error" in result) {
-                  return {
-                    type: "closed" as const,
-                    session: input.session,
-                    paneId: input.paneId,
-                  };
-                }
-                const event = dumpScreenToFrame(
-                  input.session,
-                  input.paneId,
-                  result.viewport.join("\n"),
-                  dumpInitial,
-                );
-                dumpInitial = false;
-                return event;
-              }),
-            ),
+      const pollContents = Stream.tick(DUMP_SCREEN_POLL).pipe(
+        Stream.mapEffect(() =>
+          readViewport(input).pipe(
+            Effect.map((result) => {
+              if ("error" in result) {
+                return {
+                  type: "closed" as const,
+                  session: input.session,
+                  paneId: input.paneId,
+                };
+              }
+              const event = dumpScreenToFrame(
+                input.session,
+                input.paneId,
+                result.viewport.join("\n"),
+                dumpInitial,
+              );
+              dumpInitial = false;
+              return event;
+            }),
           ),
-          Stream.takeUntil((event) => event.type === "closed"),
+        ),
+        Stream.takeUntil((event) => event.type === "closed"),
+      );
+
+      return coalesceWatchEvents(
+        subscribe.pipe(
+          Stream.catchCause((cause) => {
+            const error = Option.getOrUndefined(Cause.findErrorOption(cause));
+            if (error?._tag === "ItermNotFoundError") {
+              return Stream.fail(error);
+            }
+            return pollContents;
+          }),
         ),
       );
     }),
