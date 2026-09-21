@@ -346,7 +346,7 @@ export const WS_METHODS = {
   terminalRestart: "terminal.restart",
   terminalClose: "terminal.close",
 
-  // Live-pane wall (Zellij). Not T3-owned terminals.
+  // Live-pane wall (Zellij and iTerm2). Not T3-owned terminals.
   wallInventory: "wall.inventory",
   wallInject: "wall.inject",
   wallGrant: "wall.grant",

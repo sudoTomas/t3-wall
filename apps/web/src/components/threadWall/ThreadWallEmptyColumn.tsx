@@ -148,11 +148,11 @@ export function ThreadWallEmptyColumn({
                 </div>
               ) : inventory.isPending ? (
                 <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Looking for Zellij panes…
+                  Looking for live panes…
                 </div>
               ) : paneCandidates.length === 0 ? (
                 <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  No live Zellij panes on this environment.
+                  No live panes on this environment.
                 </div>
               ) : (
                 paneCandidates.map(({ session, pane }) => (

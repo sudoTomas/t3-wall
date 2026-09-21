@@ -24,7 +24,7 @@ export function WallSessionsRouteScreen({ route }: StaticScreenProps<{ environme
     <View className="flex-1 bg-background">
       <NativeStackScreenOptions options={{ title: "Sessions" }} />
       {inventory.isPending && inventory.data === null ? (
-        <LoadingScreen message="Looking for Zellij sessions…" />
+        <LoadingScreen message="Looking for live sessions…" />
       ) : inventory.error !== null ? (
         <View className="p-5">
           <ErrorBanner message={inventory.error} />
@@ -32,7 +32,7 @@ export function WallSessionsRouteScreen({ route }: StaticScreenProps<{ environme
       ) : sessions.length === 0 ? (
         <EmptyState
           title="No live sessions"
-          detail="No active Zellij sessions on this environment. Start one in a terminal, then pull to refresh."
+          detail="No active Zellij or iTerm sessions on this environment. Start one in a terminal, then pull to refresh."
           actionLabel="Refresh"
           onAction={inventory.refresh}
         />

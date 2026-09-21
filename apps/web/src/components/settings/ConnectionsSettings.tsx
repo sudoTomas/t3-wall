@@ -256,18 +256,18 @@ const PAIRING_SCOPE_OPTIONS: ReadonlyArray<{
   {
     scope: AuthWallWatchScope,
     title: "Watch live panes",
-    description: "List Zellij sessions and panes on this machine.",
+    description: "List Zellij and iTerm sessions and panes on this machine.",
   },
   {
     scope: AuthWallInjectScope,
     title: "Type into live panes",
     description:
-      "Paste into a granted Zellij session. Still blocked until that session is granted.",
+      "Paste into a granted Zellij or iTerm session. Still blocked until that session is granted.",
   },
   {
     scope: AuthWallGrantScope,
     title: "Grant live-pane inject",
-    description: "Allow or revoke inject for a named Zellij session.",
+    description: "Allow or revoke inject for a named Zellij or iTerm session.",
   },
 ];
 

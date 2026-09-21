@@ -485,7 +485,7 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     Effect.gen(function* () {
       const { output } = yield* captureStdout(runCli(["wall", "--help"], noConnectCli));
 
-      assert.include(output, "live Zellij panes");
+      assert.include(output, "live Zellij or iTerm panes");
       assert.include(output, "ls");
       assert.include(output, "say");
       assert.include(output, "watch");

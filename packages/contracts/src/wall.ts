@@ -1,5 +1,6 @@
 /**
- * Live-pane wall: inventory and inject into Zellij panes the T3 server does not own.
+ * Live-pane wall: inventory and inject into multiplexer panes the T3 server does not own
+ * (Zellij sessions, and iTerm2 tabs/splits as `iterm:<windowId>`).
  * Success of inject means the multiplexer accepted the action, not that an agent finished a turn.
  */
 import * as Schema from "effect/Schema";
@@ -106,12 +107,27 @@ export class MuxNotFoundError extends Schema.TaggedError<MuxNotFoundError>()("Mu
   }
 }
 
+export class ItermNotFoundError extends Schema.TaggedError<ItermNotFoundError>()(
+  "ItermNotFoundError",
+  {
+    detail: Schema.optional(Schema.String),
+  },
+) {
+  override get message(): string {
+    return "iTerm2 is not running, or osascript cannot talk to it. Open iTerm2, or bind a Zellij pane instead.";
+  }
+}
+
+function muxKindLabel(session: string): string {
+  return session.startsWith("iterm:") ? "iTerm" : "Zellij";
+}
+
 export class MuxSessionNotFoundError extends Schema.TaggedError<MuxSessionNotFoundError>()(
   "MuxSessionNotFoundError",
   { session: Schema.String },
 ) {
   override get message(): string {
-    return `Zellij session '${this.session}' is not active.`;
+    return `${muxKindLabel(this.session)} session '${this.session}' is not active.`;
   }
 }
 
@@ -120,7 +136,7 @@ export class MuxPaneNotFoundError extends Schema.TaggedError<MuxPaneNotFoundErro
   { session: Schema.String, paneId: Schema.String },
 ) {
   override get message(): string {
-    return `Pane '${this.paneId}' was not found in Zellij session '${this.session}'.`;
+    return `Pane '${this.paneId}' was not found in ${muxKindLabel(this.session)} session '${this.session}'.`;
   }
 }
 
@@ -138,23 +154,29 @@ export class MuxInjectUnauthorizedError extends Schema.TaggedError<MuxInjectUnau
   { session: Schema.String },
 ) {
   override get message(): string {
-    return `Inject into Zellij session '${this.session}' is not granted. An operator must wall.grant that session first.`;
+    return `Inject into ${muxKindLabel(this.session)} session '${this.session}' is not granted. An operator must wall.grant that session first.`;
   }
 }
 
 export class MuxCommandFailedError extends Schema.TaggedError<MuxCommandFailedError>()(
   "MuxCommandFailedError",
-  { operation: Schema.String, detail: Schema.optional(Schema.String) },
+  {
+    operation: Schema.String,
+    detail: Schema.optional(Schema.String),
+    mux: Schema.optional(Schema.String),
+  },
 ) {
   override get message(): string {
+    const who = this.mux ?? "Zellij";
     return this.detail === undefined
-      ? `Zellij ${this.operation} failed.`
-      : `Zellij ${this.operation} failed: ${this.detail}`;
+      ? `${who} ${this.operation} failed.`
+      : `${who} ${this.operation} failed: ${this.detail}`;
   }
 }
 
 export const WallError = Schema.Union([
   MuxNotFoundError,
+  ItermNotFoundError,
   MuxSessionNotFoundError,
   MuxPaneNotFoundError,
   MuxInjectRefusedError,
