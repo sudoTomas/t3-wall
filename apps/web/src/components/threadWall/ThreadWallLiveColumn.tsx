@@ -2,7 +2,11 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { isAgentCmdHint } from "@t3tools/client-runtime/state/wall";
+import {
+  isAgentCmdHint,
+  wallPaneLabel,
+  wallSessionLabel,
+} from "@t3tools/client-runtime/state/wall";
 import type { EnvironmentId, MuxCmdHint, MuxPane } from "@t3tools/contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -45,6 +49,7 @@ export function ThreadWallLiveColumn({
   const grant = useAtomCommand(wallGrant, { reportFailure: false });
   const inject = useAtomCommand(wallInject, { reportFailure: false });
   const pane = paneFromInventory(inventory.data?.sessions ?? null, session, paneId);
+  const muxSession = inventory.data?.sessions.find((item) => item.name === session);
   const cmdHint: MuxCmdHint | undefined = pane?.cmdHint;
   const granted = grants.data?.sessions.includes(session) ?? false;
   const needsConfirm = !isAgentCmdHint(cmdHint);
@@ -116,11 +121,11 @@ export function ThreadWallLiveColumn({
       <div className="flex items-center gap-2 border-b border-border px-3 py-2 pr-10">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
-            {session} / {paneId}
+            {pane !== undefined ? wallPaneLabel(pane) : paneId}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {cmdHint ?? "live pane"}
-            {pane?.title ? ` · ${pane.title}` : ""}
+            {muxSession !== undefined ? ` · ${wallSessionLabel(muxSession)}` : ` · ${session}`}
             {granted ? " · inject granted" : " · grant inject to type"}
           </p>
         </div>

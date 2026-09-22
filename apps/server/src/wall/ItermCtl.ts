@@ -323,9 +323,17 @@ function toMuxPane(pane: typeof ItermPaneJson.Type): MuxPane {
   };
 }
 
+function clipSessionTitle(raw: string | undefined): string | undefined {
+  const title = (raw ?? "").trim();
+  if (title.length === 0) return undefined;
+  return title.length > 200 ? `${title.slice(0, 199)}…` : title;
+}
+
 function toMuxSession(window: typeof ItermWindowJson.Type): MuxSession {
+  const title = clipSessionTitle(window.name);
   return {
     name: itermSessionName(window.id),
+    ...(title === undefined ? {} : { title }),
     exited: false,
     panes: window.panes.map(toMuxPane),
   };

@@ -13,7 +13,9 @@ import { wallEnvironment } from "../../state/wall";
 import {
   visibleWallPanes,
   visibleWallSessions,
+  wallPaneLabel,
   wallPaneSubtitle,
+  wallSessionLabel,
 } from "./wallInventoryPresentation";
 import { WallPickRow } from "./WallPickRow";
 
@@ -32,7 +34,9 @@ export function WallPanesRouteScreen({
 
   return (
     <View className="flex-1 bg-background">
-      <NativeStackScreenOptions options={{ title: sessionName }} />
+      <NativeStackScreenOptions
+        options={{ title: session !== undefined ? wallSessionLabel(session) : sessionName }}
+      />
       {inventory.isPending && inventory.data === null ? (
         <LoadingScreen message="Looking for panes…" />
       ) : inventory.error !== null ? (
@@ -54,8 +58,8 @@ export function WallPanesRouteScreen({
           {panes.map((pane) => (
             <WallPickRow
               key={pane.id}
-              title={pane.id}
-              subtitle={wallPaneSubtitle(pane)}
+              title={wallPaneLabel(pane)}
+              subtitle={wallPaneSubtitle(pane, session)}
               onPress={() =>
                 navigation.navigate("WallPane", {
                   environmentId,

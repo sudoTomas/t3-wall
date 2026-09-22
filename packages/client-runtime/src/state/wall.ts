@@ -48,6 +48,30 @@ export function isAgentCmdHint(hint: MuxCmdHint | undefined): boolean {
   return hint !== undefined && hint !== "zsh" && hint !== "unknown";
 }
 
+export function wallPaneLabel(pane: { readonly id: string; readonly title: string }): string {
+  const title = pane.title.trim();
+  return title.length > 0 ? title : pane.id;
+}
+
+export function wallSessionLabel(session: {
+  readonly name: string;
+  readonly title?: string;
+}): string {
+  const title = session.title?.trim() ?? "";
+  return title.length > 0 ? title : session.name;
+}
+
+export function wallPaneSubtitle(
+  pane: { readonly id: string; readonly title: string; readonly cmdHint: string },
+  session?: { readonly name: string; readonly title?: string },
+): string {
+  const parts = [pane.cmdHint];
+  if (session !== undefined) {
+    parts.push(wallSessionLabel(session));
+  }
+  return parts.join(" · ");
+}
+
 export function createWallEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
 ) {

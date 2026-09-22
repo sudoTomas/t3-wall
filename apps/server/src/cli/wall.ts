@@ -39,6 +39,7 @@ const noSubmitFlag = Flag.Boolean("no-submit").pipe(
 function formatInventoryText(inventory: {
   readonly sessions: ReadonlyArray<{
     readonly name: string;
+    readonly title?: string;
     readonly exited: boolean;
     readonly panes: ReadonlyArray<{
       readonly id: string;
@@ -53,7 +54,12 @@ function formatInventoryText(inventory: {
   }
   const lines: Array<string> = [];
   for (const session of inventory.sessions) {
-    lines.push(`${session.name}${session.exited ? " (exited)" : ""}`);
+    const title = session.title?.trim();
+    const heading =
+      title !== undefined && title.length > 0 && title !== session.name
+        ? `${session.name}  ${title}`
+        : session.name;
+    lines.push(`${heading}${session.exited ? " (exited)" : ""}`);
     if (session.exited) continue;
     if (session.panes.length === 0) {
       lines.push("  (no terminal panes)");

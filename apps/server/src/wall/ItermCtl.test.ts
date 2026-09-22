@@ -119,6 +119,7 @@ describe("listInventory", () => {
       runMock.mockReturnValueOnce(processOutput(INVENTORY_JSON));
       const inventory = yield* listInventory().pipe(runWall);
       expect(inventory.sessions.map((session) => session.name)).toEqual(["iterm:185"]);
+      expect(inventory.sessions[0]?.title).toBe("work");
       expect(inventory.sessions[0]?.panes.map((pane) => pane.id)).toEqual([
         CAT_PANE_ID,
         CLAUDE_PANE_ID,

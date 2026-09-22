@@ -50,10 +50,12 @@ describe("visibleWallPanes", () => {
 });
 
 describe("wallPaneSubtitle", () => {
-  it("includes title when present", () => {
-    expect(wallPaneSubtitle(pane({ id: "terminal_1", cmdHint: "claude", title: "src" }))).toBe(
-      "claude · src",
-    );
+  it("puts cmdHint and session label in the subtitle, not the pane title", () => {
+    expect(
+      wallPaneSubtitle(pane({ id: "terminal_1", cmdHint: "claude", title: "src" }), {
+        name: "work",
+      }),
+    ).toBe("claude · work");
     expect(wallPaneSubtitle(pane({ id: "terminal_1", cmdHint: "zsh" }))).toBe("zsh");
   });
 });

@@ -34,6 +34,7 @@ export type MuxPane = typeof MuxPane.Type;
 
 export const MuxSession = Schema.Struct({
   name: MuxSessionName,
+  title: Schema.optional(Schema.String),
   createdAt: Schema.optional(Schema.String),
   exited: Schema.Boolean,
   panes: Schema.Array(MuxPane),

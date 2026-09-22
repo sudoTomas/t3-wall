@@ -10,7 +10,11 @@ import { ScreenScrollView as ScrollView } from "../../components/ScreenScrollVie
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { useEnvironmentQuery } from "../../state/query";
 import { wallEnvironment } from "../../state/wall";
-import { visibleWallPanes, visibleWallSessions } from "./wallInventoryPresentation";
+import {
+  visibleWallPanes,
+  visibleWallSessions,
+  wallSessionLabel,
+} from "./wallInventoryPresentation";
 import { WallPickRow } from "./WallPickRow";
 
 export function WallSessionsRouteScreen({ route }: StaticScreenProps<{ environmentId: string }>) {
@@ -44,7 +48,7 @@ export function WallSessionsRouteScreen({ route }: StaticScreenProps<{ environme
           {sessions.map((session) => (
             <WallPickRow
               key={session.name}
-              title={session.name}
+              title={wallSessionLabel(session)}
               subtitle={`${visibleWallPanes(session).length} panes`}
               onPress={() =>
                 navigation.navigate("WallPanes", {

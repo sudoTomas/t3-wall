@@ -1,3 +1,4 @@
+import { wallPaneLabel, wallPaneSubtitle } from "@t3tools/client-runtime/state/wall";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { MessageSquareIcon, PlusIcon, TerminalIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -62,7 +63,7 @@ export function ThreadWallEmptyColumn({
         if (assignedLivePaneKeys.has(livePaneKey({ session: session.name, paneId: pane.id }))) {
           return false;
         }
-        return `${session.name} ${pane.id} ${pane.title} ${pane.cmdHint}`
+        return `${session.name} ${session.title ?? ""} ${pane.id} ${pane.title} ${pane.cmdHint}`
           .toLocaleLowerCase()
           .includes(search);
       })
@@ -158,17 +159,17 @@ export function ThreadWallEmptyColumn({
                 paneCandidates.map(({ session, pane }) => (
                   <CommandItem
                     key={`${session}:${pane.id}`}
-                    value={`${session}:${pane.id}`}
+                    value={`${session}:${pane.id}:${pane.title}:${pane.cmdHint}`}
                     onClick={() => onPickLivePane({ session, paneId: pane.id })}
                   >
                     <TerminalIcon aria-hidden className="size-4 shrink-0" />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate">
-                        {session} / {pane.id}
-                      </span>
+                      <span className="truncate">{wallPaneLabel(pane)}</span>
                       <span className="truncate text-xs text-muted-foreground">
-                        {pane.cmdHint}
-                        {pane.title ? ` · ${pane.title}` : ""}
+                        {wallPaneSubtitle(
+                          pane,
+                          inventory.data?.sessions.find((item) => item.name === session),
+                        )}
                       </span>
                     </span>
                   </CommandItem>
