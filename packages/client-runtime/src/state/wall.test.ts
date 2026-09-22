@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { applyWallWatchEvent, emptyWallWatchView, isAgentCmdHint } from "./wall.ts";
+import {
+  applyWallWatchEvent,
+  emptyWallWatchView,
+  isAgentCmdHint,
+  wallPaneLabel,
+  wallPaneSubtitle,
+  wallSessionLabel,
+} from "./wall.ts";
 
 describe("applyWallWatchEvent", () => {
   it("replaces the viewport on a frame and reopens a closed pane", () => {
@@ -51,5 +58,27 @@ describe("isAgentCmdHint", () => {
     expect(isAgentCmdHint("zsh")).toBe(false);
     expect(isAgentCmdHint("unknown")).toBe(false);
     expect(isAgentCmdHint(undefined)).toBe(false);
+  });
+});
+
+describe("wall labels", () => {
+  it("prefers pane title over id", () => {
+    expect(wallPaneLabel({ id: "terminal_1", title: "claude-work" })).toBe("claude-work");
+    expect(wallPaneLabel({ id: "terminal_1", title: "  " })).toBe("terminal_1");
+  });
+
+  it("prefers session title over mux name", () => {
+    expect(wallSessionLabel({ name: "iterm:185", title: "Sotto Electron" })).toBe("Sotto Electron");
+    expect(wallSessionLabel({ name: "work" })).toBe("work");
+  });
+
+  it("keeps cmdHint and session in the subtitle without repeating the pane title", () => {
+    expect(
+      wallPaneSubtitle(
+        { id: "25EB0C9F-265D-42D5-AF9C-F81D8594552F", title: "grok (grok)", cmdHint: "grok" },
+        { name: "iterm:185", title: "Sotto Electron" },
+      ),
+    ).toBe("grok · Sotto Electron");
+    expect(wallPaneSubtitle({ id: "terminal_1", title: "", cmdHint: "zsh" })).toBe("zsh");
   });
 });

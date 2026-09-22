@@ -2,7 +2,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { isAgentCmdHint } from "@t3tools/client-runtime/state/wall";
+import { isAgentCmdHint, wallPaneLabel } from "@t3tools/client-runtime/state/wall";
 import { EnvironmentId, type MuxPane } from "@t3tools/contracts";
 import { type StaticScreenProps } from "@react-navigation/native";
 import { useMemo, useState } from "react";
@@ -98,7 +98,9 @@ export function WallPaneRouteScreen({
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
     >
-      <NativeStackScreenOptions options={{ title: `${session} / ${paneId}` }} />
+      <NativeStackScreenOptions
+        options={{ title: pane !== undefined ? wallPaneLabel(pane) : `${session} / ${paneId}` }}
+      />
       <ScrollView
         className="flex-1"
         contentInsetAdjustmentBehavior="automatic"
@@ -106,7 +108,6 @@ export function WallPaneRouteScreen({
       >
         <Text className="mb-2 text-sm text-foreground-muted">
           {pane?.cmdHint ?? "live pane"}
-          {pane?.title ? ` · ${pane.title}` : ""}
           {grantQueryAvailable ? (granted ? " · inject granted" : " · inject not granted") : ""}
         </Text>
         {watch.error !== null ? <ErrorBanner message={watch.error} /> : null}

@@ -1,4 +1,11 @@
+import {
+  wallPaneLabel,
+  wallPaneSubtitle,
+  wallSessionLabel,
+} from "@t3tools/client-runtime/state/wall";
 import type { MuxInventory, MuxPane, MuxSession } from "@t3tools/contracts";
+
+export { wallPaneLabel, wallPaneSubtitle, wallSessionLabel };
 
 export function visibleWallSessions(
   inventory: MuxInventory | null | undefined,
@@ -10,10 +17,6 @@ export function visibleWallSessions(
 export function visibleWallPanes(session: MuxSession | undefined): ReadonlyArray<MuxPane> {
   if (session === undefined) return [];
   return session.panes.filter((pane) => !pane.exited);
-}
-
-export function wallPaneSubtitle(pane: MuxPane): string {
-  return pane.title.trim().length > 0 ? `${pane.cmdHint} · ${pane.title}` : pane.cmdHint;
 }
 
 export function wallCommandErrorMessage(failure: unknown): string {
