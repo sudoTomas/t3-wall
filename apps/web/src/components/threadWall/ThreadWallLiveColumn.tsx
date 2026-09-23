@@ -4,6 +4,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import {
   isAgentCmdHint,
+  wallActivityLabel,
   wallPaneLabel,
   wallSessionLabel,
 } from "@t3tools/client-runtime/state/wall";
@@ -68,6 +69,7 @@ export function ThreadWallLiveColumn({
 
   const viewport = watch.data?.viewport ?? [];
   const closed = watch.data?.closed === true;
+  const activity = watch.data?.activity ?? "idle";
   const status = useMemo(() => {
     if (watch.error !== null) return watch.error;
     if (closed) return "Pane closed.";
@@ -123,9 +125,12 @@ export function ThreadWallLiveColumn({
           <p className="truncate text-sm font-medium text-foreground">
             {pane !== undefined ? wallPaneLabel(pane) : paneId}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p
+            className={`truncate text-xs ${activity === "blocked" && !closed ? "text-destructive" : "text-muted-foreground"}`}
+          >
             {cmdHint ?? "live pane"}
             {muxSession !== undefined ? ` · ${wallSessionLabel(muxSession)}` : ` · ${session}`}
+            {viewport.length > 0 && !closed ? ` · ${wallActivityLabel(activity)}` : ""}
             {granted ? " · inject granted" : " · grant inject to type"}
           </p>
         </div>

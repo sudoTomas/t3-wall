@@ -21,6 +21,7 @@ import {
   type MuxSession,
   type WallError,
   type WallWatchEvent,
+  inferMuxPaneActivity,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -258,12 +259,14 @@ export function parseItermWatchLine(
     return { type: "closed", session, paneId };
   }
   if (payload.event !== "frame") return null;
+  const viewport = clipViewport(payload.viewport ?? []);
   return {
     type: "frame",
     session,
     paneId,
-    viewport: clipViewport(payload.viewport ?? []),
+    viewport,
     initial: payload.initial === true,
+    activity: inferMuxPaneActivity(viewport),
   };
 }
 

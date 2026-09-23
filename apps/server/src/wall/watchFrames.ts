@@ -1,4 +1,4 @@
-import type { WallError, WallWatchEvent } from "@t3tools/contracts";
+import { inferMuxPaneActivity, type WallError, type WallWatchEvent } from "@t3tools/contracts";
 import * as Duration from "effect/Duration";
 import * as Stream from "effect/Stream";
 
@@ -16,12 +16,14 @@ export function dumpScreenToFrame(
   stdout: string,
   initial: boolean,
 ): WallWatchEvent {
+  const viewport = clipViewport(stdout.split("\n"));
   return {
     type: "frame",
     session,
     paneId,
-    viewport: clipViewport(stdout.split("\n")),
+    viewport,
     initial,
+    activity: inferMuxPaneActivity(viewport),
   };
 }
 

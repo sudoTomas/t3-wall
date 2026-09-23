@@ -296,6 +296,7 @@ describe("parseSubscribeLine", () => {
       paneId: "terminal_1",
       initial: true,
       viewport: ["hello-from-outside", ""],
+      activity: "idle",
     });
   });
 
@@ -319,6 +320,7 @@ describe("shouldEmitWatchEvent", () => {
     paneId: "terminal_1",
     initial: false,
     viewport: ["a"],
+    activity: "idle" as const,
   };
 
   it("always emits initial frames and closed events", () => {
@@ -378,6 +380,7 @@ describe("watch", () => {
           paneId: "terminal_1",
           initial: true,
           viewport: ["hello"],
+          activity: "idle",
         },
         { type: "closed", session: "work", paneId: "terminal_1" },
       ]);
@@ -414,6 +417,7 @@ describe("watch", () => {
           paneId: "terminal_1",
           initial: true,
           viewport: ["from-dump", ""],
+          activity: "idle",
         },
       ]);
     }),

@@ -260,6 +260,7 @@ describe("parseItermWatchLine", () => {
       paneId: CLAUDE_PANE_ID,
       initial: true,
       viewport: ["hello"],
+      activity: "idle",
     });
   });
 
@@ -296,6 +297,7 @@ describe("watch", () => {
           paneId: CLAUDE_PANE_ID,
           initial: true,
           viewport: ["hello"],
+          activity: "idle",
         },
         { type: "closed", session: "iterm:185", paneId: CLAUDE_PANE_ID },
       ]);
@@ -327,6 +329,7 @@ describe("watch", () => {
           paneId: CLAUDE_PANE_ID,
           initial: true,
           viewport: ["from-applescript"],
+          activity: "idle",
         },
       ]);
     }),
@@ -350,6 +353,7 @@ describe("watch", () => {
           paneId: CLAUDE_PANE_ID,
           initial: true,
           viewport: ["from-applescript"],
+          activity: "idle",
         },
       ]);
     }),
