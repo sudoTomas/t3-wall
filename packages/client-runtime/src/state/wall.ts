@@ -1,8 +1,10 @@
 import {
   WS_METHODS,
   type MuxCmdHint,
+  type MuxPaneActivity,
   type WallWatchEvent,
   type WallWatchInput,
+  inferMuxPaneActivity,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -21,10 +23,11 @@ export interface WallWatchView {
   readonly paneId: string;
   readonly viewport: ReadonlyArray<string>;
   readonly closed: boolean;
+  readonly activity: MuxPaneActivity;
 }
 
 export function emptyWallWatchView(session: string, paneId: string): WallWatchView {
-  return { session, paneId, viewport: [], closed: false };
+  return { session, paneId, viewport: [], closed: false, activity: "idle" };
 }
 
 export function applyWallWatchEvent(current: WallWatchView, event: WallWatchEvent): WallWatchView {
@@ -34,6 +37,7 @@ export function applyWallWatchEvent(current: WallWatchView, event: WallWatchEven
       paneId: event.paneId,
       viewport: current.viewport,
       closed: true,
+      activity: current.activity,
     };
   }
   return {
@@ -41,6 +45,7 @@ export function applyWallWatchEvent(current: WallWatchView, event: WallWatchEven
     paneId: event.paneId,
     viewport: event.viewport,
     closed: false,
+    activity: event.activity ?? inferMuxPaneActivity(event.viewport),
   };
 }
 
@@ -59,6 +64,12 @@ export function wallSessionLabel(session: {
 }): string {
   const title = session.title?.trim() ?? "";
   return title.length > 0 ? title : session.name;
+}
+
+export function wallActivityLabel(activity: MuxPaneActivity): string {
+  if (activity === "blocked") return "blocked";
+  if (activity === "running") return "running";
+  return "idle";
 }
 
 export function wallPaneSubtitle(

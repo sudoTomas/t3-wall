@@ -81,12 +81,43 @@ export const WallWatchInput = Schema.Struct({
 });
 export type WallWatchInput = typeof WallWatchInput.Type;
 
+export const MuxPaneActivity = Schema.Literals(["idle", "running", "blocked"]);
+export type MuxPaneActivity = typeof MuxPaneActivity.Type;
+
+const BLOCKED_PATTERNS = [
+  /do you want to (proceed|make this edit|run|continue|allow)/i,
+  /allow (this )?(tool|command|bash|edit)\b/i,
+  /wants to (use|run|execute|edit|write|read)\b/i,
+  /waiting for (your )?(approval|permission|input|response)/i,
+  /needs? (your )?approval/i,
+  /yes, and don't ask again/i,
+  /yes, allow all/i,
+  /\b1\.\s*yes\b[\s\S]{0,120}\b3\.\s*no\b/i,
+  /\bapprove\b[\s\S]{0,80}\b(reject|deny|decline)\b/i,
+];
+
+const RUNNING_PATTERNS = [
+  /esc to interrupt/i,
+  /\bthinking\b/i,
+  /\bworking\b/i,
+  /thought for /i,
+  /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/,
+];
+
+export function inferMuxPaneActivity(viewport: ReadonlyArray<string>): MuxPaneActivity {
+  const text = viewport.join("\n");
+  if (BLOCKED_PATTERNS.some((pattern) => pattern.test(text))) return "blocked";
+  if (RUNNING_PATTERNS.some((pattern) => pattern.test(text))) return "running";
+  return "idle";
+}
+
 export const WallPaneFrame = Schema.Struct({
   type: Schema.Literal("frame"),
   session: MuxSessionName,
   paneId: MuxPaneId,
   viewport: Schema.Array(Schema.String),
   initial: Schema.Boolean,
+  activity: MuxPaneActivity,
 });
 export type WallPaneFrame = typeof WallPaneFrame.Type;
 

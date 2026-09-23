@@ -24,12 +24,14 @@ describe("applyWallWatchEvent", () => {
       paneId: "terminal_1",
       viewport: ["hello", "world"],
       initial: false,
+      activity: "idle",
     });
     expect(frame).toEqual({
       session: "work",
       paneId: "terminal_1",
       viewport: ["hello", "world"],
       closed: false,
+      activity: "idle",
     });
   });
 
@@ -40,6 +42,7 @@ describe("applyWallWatchEvent", () => {
       paneId: "terminal_1",
       viewport: ["prompt"],
       initial: true,
+      activity: "idle",
     });
     const closed = applyWallWatchEvent(framed, {
       type: "closed",
@@ -48,6 +51,19 @@ describe("applyWallWatchEvent", () => {
     });
     expect(closed.viewport).toEqual(["prompt"]);
     expect(closed.closed).toBe(true);
+    expect(closed.activity).toBe("idle");
+  });
+
+  it("records blocked activity from a permission prompt", () => {
+    const framed = applyWallWatchEvent(emptyWallWatchView("work", "terminal_1"), {
+      type: "frame",
+      session: "work",
+      paneId: "terminal_1",
+      viewport: ["Do you want to proceed?"],
+      initial: false,
+      activity: "blocked",
+    });
+    expect(framed.activity).toBe("blocked");
   });
 });
 

@@ -2,10 +2,14 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { isAgentCmdHint, wallPaneLabel } from "@t3tools/client-runtime/state/wall";
+import {
+  isAgentCmdHint,
+  wallActivityLabel,
+  wallPaneLabel,
+} from "@t3tools/client-runtime/state/wall";
 import { EnvironmentId, type MuxPane } from "@t3tools/contracts";
 import { type StaticScreenProps } from "@react-navigation/native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Switch, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,6 +20,7 @@ import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useEnvironmentQuery } from "../../state/query";
 import { wallEnvironment } from "../../state/wall";
+import { notifyWallPaneBlocked } from "./wallPaneBlockedAlert";
 import { wallCommandErrorMessage } from "./wallInventoryPresentation";
 
 function paneFromInventory(
@@ -53,6 +58,14 @@ export function WallPaneRouteScreen({
   const [error, setError] = useState<string | null>(null);
   const viewport = watch.data?.viewport ?? [];
   const closed = watch.data?.closed === true;
+  const activity = watch.data?.activity ?? "idle";
+  const previousActivity = useRef<string | null>(null);
+  useEffect(() => {
+    const prior = previousActivity.current;
+    previousActivity.current = activity;
+    if (closed || prior === null || prior === "blocked" || activity !== "blocked") return;
+    void notifyWallPaneBlocked(pane !== undefined ? wallPaneLabel(pane) : paneId);
+  }, [activity, closed, pane, paneId]);
   const status = useMemo(() => {
     if (watch.error !== null) return watch.error;
     if (closed) return "Pane closed.";
@@ -106,8 +119,11 @@ export function WallPaneRouteScreen({
         contentInsetAdjustmentBehavior="automatic"
         contentContainerClassName="px-4 py-3"
       >
-        <Text className="mb-2 text-sm text-foreground-muted">
+        <Text
+          className={`mb-2 text-sm ${activity === "blocked" && !closed ? "text-danger-foreground" : "text-foreground-muted"}`}
+        >
           {pane?.cmdHint ?? "live pane"}
+          {viewport.length > 0 && !closed ? ` · ${wallActivityLabel(activity)}` : ""}
           {grantQueryAvailable ? (granted ? " · inject granted" : " · inject not granted") : ""}
         </Text>
         {watch.error !== null ? <ErrorBanner message={watch.error} /> : null}
